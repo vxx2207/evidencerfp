@@ -1,0 +1,339 @@
+{
+  "id": "ana-nordstern-2026",
+  "name": "Identity Security Assessment",
+  "customer": "Nordstern Privatbank AG",
+  "createdAt": "2026-10-13T08:42:00+02:00",
+  "status": "COMPLETED",
+  "progress": 100,
+  "questions": [
+    {
+      "id": "IAM-001",
+      "category": "Authentifizierung",
+      "text": "Unterstützt die Plattform phishing-resistente Multi-Faktor-Authentifizierung für privilegierte Konten?",
+      "status": "SUPPORTED",
+      "reviewStatus": "FREIGEGEBEN",
+      "answer": "Ja. CertaAccess unterstützt FIDO2/WebAuthn-Passkeys und hardwaregebundene Sicherheitsschlüssel. Für privilegierte Rollen kann eine Richtlinie erzwungen werden, die ausschließlich phishing-resistente Faktoren zulässt.",
+      "rationale": "Die Produktspezifikation benennt die unterstützten Faktoren und die separate Erzwingung für privilegierte Rollen ausdrücklich.",
+      "updatedAt": "Vor 8 Min.",
+      "citations": [{"id":"cit-001","documentId":"doc-security","chunkId":"security-2-1","section":"2.1 Starke Authentifizierung","page":6,"quote":"Für privilegierte Rollen kann eine Richtlinie erzwungen werden, die ausschließlich FIDO2/WebAuthn-Passkeys oder hardwaregebundene Sicherheitsschlüssel akzeptiert.","relevance":"Belegt Faktor und Erzwingung."}]
+    },
+    {
+      "id": "IAM-002",
+      "category": "Authentifizierung",
+      "text": "Können kontextabhängige Zugriffsrichtlinien nach Standort, Gerät und Risiko definiert werden?",
+      "status": "SUPPORTED",
+      "reviewStatus": "FREIGEGEBEN",
+      "answer": "Ja. Adaptive Richtlinien können Gerätezustand, Netzwerkzone, Geo-Risiko, Nutzerverhalten und Sitzungskontext kombinieren.",
+      "rationale": "Die dokumentierten Richtliniensignale decken alle angefragten Kontexte ab.",
+      "updatedAt": "Vor 12 Min.",
+      "citations": [{"id":"cit-002","documentId":"doc-security","chunkId":"security-2-3","section":"2.3 Adaptive Policies","page":8,"quote":"Richtlinien können Gerätezustand, Netzwerkzone, Geo-Risiko, Nutzerverhalten und Sitzungskontext kombinieren.","relevance":"Vollständige Übereinstimmung."}]
+    },
+    {
+      "id": "IAM-003",
+      "category": "Provisionierung",
+      "text": "Werden SCIM 2.0 und Just-in-Time-Provisionierung unterstützt?",
+      "status": "SUPPORTED",
+      "reviewStatus": "FREIGEGEBEN",
+      "answer": "Ja. CertaAccess unterstützt SCIM 2.0 für Provisionierung und Deprovisionierung sowie Just-in-Time-Provisionierung über SAML und OIDC.",
+      "rationale": "Beide Verfahren sind in der Integrationsübersicht dokumentiert.",
+      "updatedAt": "Vor 14 Min.",
+      "citations": [{"id":"cit-003","documentId":"doc-architecture","chunkId":"arch-4-2","section":"4.2 Identity Lifecycle","page":14,"quote":"SCIM 2.0 wird für Provisionierung und Deprovisionierung unterstützt; Just-in-Time-Provisionierung ist über SAML 2.0 und OIDC verfügbar.","relevance":"Belegt beide geforderten Standards."}]
+    },
+    {
+      "id": "IAM-004",
+      "category": "Governance",
+      "text": "Sind zeitlich begrenzte Zugriffsrechte und automatische Rezertifizierungen möglich?",
+      "status": "SUPPORTED",
+      "reviewStatus": "OFFEN",
+      "answer": "Ja. Berechtigungen lassen sich mit Ablaufdatum vergeben. Rezertifizierungskampagnen können quartalsweise oder ereignisbasiert gestartet werden.",
+      "rationale": "Lifecycle-Handbuch beschreibt Ablaufsteuerung und Kampagnenplanung.",
+      "updatedAt": "Vor 19 Min.",
+      "citations": [{"id":"cit-004","documentId":"doc-admin","chunkId":"admin-5-4","section":"5.4 Access Reviews","page":22,"quote":"Berechtigungen können mit einem Ablaufdatum versehen werden. Rezertifizierungskampagnen lassen sich quartalsweise oder ereignisbasiert auslösen.","relevance":"Deckt beide Teilfragen ab."}]
+    },
+    {
+      "id": "IAM-005",
+      "category": "Protokollierung",
+      "text": "Werden alle administrativen Änderungen revisionssicher protokolliert?",
+      "status": "SUPPORTED",
+      "reviewStatus": "FREIGEGEBEN",
+      "answer": "Ja. Administrative Änderungen werden unveränderbar mit Akteur, Zeitstempel, Zielobjekt sowie Vorher-/Nachher-Wert erfasst.",
+      "rationale": "Der Audit-Trail dokumentiert die geforderten Attribute und die Unveränderbarkeit.",
+      "updatedAt": "Vor 21 Min.",
+      "citations": [{"id":"cit-005","documentId":"doc-compliance","chunkId":"compliance-3-1","section":"3.1 Audit Trail","page":11,"quote":"Administrative Änderungen werden unveränderbar mit Akteur, Zeitstempel, Zielobjekt sowie Vorher- und Nachher-Wert erfasst.","relevance":"Direkter Nachweis."}]
+    },
+    {
+      "id": "IAM-006",
+      "category": "Integration",
+      "text": "Unterstützt die Lösung SAML 2.0, OpenID Connect und OAuth 2.0?",
+      "status": "SUPPORTED",
+      "reviewStatus": "FREIGEGEBEN",
+      "answer": "Ja. SAML 2.0, OpenID Connect und OAuth 2.0 werden als Standardprotokolle für föderierte Anwendungen unterstützt.",
+      "rationale": "Alle drei Protokolle werden im Architekturleitfaden aufgeführt.",
+      "updatedAt": "Vor 25 Min.",
+      "citations": [{"id":"cit-006","documentId":"doc-architecture","chunkId":"arch-3-1","section":"3.1 Federation Gateway","page":9,"quote":"Das Federation Gateway unterstützt SAML 2.0, OpenID Connect und OAuth 2.0 für angebundene Anwendungen.","relevance":"Vollständige Protokollabdeckung."}]
+    },
+    {
+      "id": "IAM-007",
+      "category": "Datenschutz",
+      "text": "Können Kundendaten ausschließlich in der Europäischen Union verarbeitet werden?",
+      "status": "SUPPORTED",
+      "reviewStatus": "FREIGEGEBEN",
+      "answer": "Ja. Für EU-Mandanten werden Identitäts- und Auditdaten ausschließlich in Frankfurt und Dublin verarbeitet und repliziert.",
+      "rationale": "Die Datenresidenz ist im Datenschutzkonzept eindeutig auf zwei EU-Regionen beschränkt.",
+      "updatedAt": "Vor 28 Min.",
+      "citations": [{"id":"cit-007","documentId":"doc-compliance","chunkId":"compliance-2-2","section":"2.2 Datenresidenz","page":7,"quote":"Für EU-Mandanten werden Identitäts- und Auditdaten ausschließlich in Frankfurt und Dublin verarbeitet und repliziert.","relevance":"Direkte Aussage zur EU-Verarbeitung."}]
+    },
+    {
+      "id": "IAM-008",
+      "category": "Betrieb",
+      "text": "Welche garantierte Plattformverfügbarkeit wird angeboten?",
+      "status": "SUPPORTED",
+      "reviewStatus": "FREIGEGEBEN",
+      "answer": "Für die produktive CertaAccess-Plattform gilt eine monatliche Verfügbarkeitszusage von 99,95 %.",
+      "rationale": "Der aktuelle Servicekatalog enthält eine eindeutige SLA-Angabe.",
+      "updatedAt": "Vor 31 Min.",
+      "citations": [{"id":"cit-008","documentId":"doc-service","chunkId":"service-1-2","section":"1.2 Verfügbarkeit","page":4,"quote":"Für die produktive CertaAccess-Plattform gilt eine monatliche Verfügbarkeitszusage von 99,95 Prozent.","relevance":"Aktuelle SLA-Angabe."}]
+    },
+    {
+      "id": "IAM-009",
+      "category": "Betrieb",
+      "text": "Wie lauten RTO und RPO für den Plattformbetrieb?",
+      "status": "SUPPORTED",
+      "reviewStatus": "OFFEN",
+      "answer": "Das dokumentierte Recovery Time Objective beträgt 4 Stunden, das Recovery Point Objective 15 Minuten.",
+      "rationale": "Beide Recovery-Kennzahlen sind im Servicekatalog dokumentiert.",
+      "updatedAt": "Vor 34 Min.",
+      "citations": [{"id":"cit-009","documentId":"doc-service","chunkId":"service-2-4","section":"2.4 Business Continuity","page":8,"quote":"Das Recovery Time Objective beträgt vier Stunden; das Recovery Point Objective beträgt 15 Minuten.","relevance":"Direkter Nachweis beider Ziele."}]
+    },
+    {
+      "id": "IAM-010",
+      "category": "Verschlüsselung",
+      "text": "Wie werden Daten während der Übertragung und im Ruhezustand verschlüsselt?",
+      "status": "SUPPORTED",
+      "reviewStatus": "FREIGEGEBEN",
+      "answer": "Daten werden bei der Übertragung mindestens mit TLS 1.2 und im Ruhezustand mit AES-256 verschlüsselt.",
+      "rationale": "Die Kryptografie-Policy benennt beide Verfahren.",
+      "updatedAt": "Vor 38 Min.",
+      "citations": [{"id":"cit-010","documentId":"doc-security","chunkId":"security-4-1","section":"4.1 Kryptografie","page":15,"quote":"Daten werden bei der Übertragung mindestens mit TLS 1.2 und im Ruhezustand mit AES-256 verschlüsselt.","relevance":"Belegt Transport- und Speicherverschlüsselung."}]
+    },
+    {
+      "id": "IAM-011",
+      "category": "Privileged Access",
+      "text": "Können privilegierte Sitzungen aufgezeichnet und nachträglich ausgewertet werden?",
+      "status": "SUPPORTED",
+      "reviewStatus": "OFFEN",
+      "answer": "Ja. Privilegierte Web- und SSH-Sitzungen können inklusive Metadaten aufgezeichnet, gesucht und regelbasiert archiviert werden.",
+      "rationale": "Die PAM-Funktionen sind im Administratorhandbuch beschrieben.",
+      "updatedAt": "Vor 41 Min.",
+      "citations": [{"id":"cit-011","documentId":"doc-admin","chunkId":"admin-7-2","section":"7.2 Session Recording","page":31,"quote":"Privilegierte Web- und SSH-Sitzungen können inklusive Metadaten aufgezeichnet, gesucht und regelbasiert archiviert werden.","relevance":"Belegt Aufzeichnung und Auswertung."}]
+    },
+    {
+      "id": "IAM-012",
+      "category": "Threat Detection",
+      "text": "Erkennt die Lösung Anmeldeanomalien wie Impossible Travel?",
+      "status": "SUPPORTED",
+      "reviewStatus": "FREIGEGEBEN",
+      "answer": "Ja. CertaAccess bewertet Impossible Travel, neue Geräte, atypische Uhrzeiten und anomale Token-Nutzung in Echtzeit.",
+      "rationale": "Die Signale werden explizit in der Risiko-Engine aufgeführt.",
+      "updatedAt": "Vor 45 Min.",
+      "citations": [{"id":"cit-012","documentId":"doc-security","chunkId":"security-3-2","section":"3.2 Risk Engine","page":11,"quote":"Die Risiko-Engine bewertet Impossible Travel, neue Geräte, atypische Uhrzeiten und anomale Token-Nutzung in Echtzeit.","relevance":"Direkter Nachweis der Anomalieerkennung."}]
+    },
+    {
+      "id": "IAM-013",
+      "category": "Protokollierung",
+      "text": "Können Sicherheitsereignisse an ein externes SIEM übertragen werden?",
+      "status": "SUPPORTED",
+      "reviewStatus": "FREIGEGEBEN",
+      "answer": "Ja. Audit- und Risikoereignisse können per Syslog, Webhook oder Streaming API an externe SIEM-Systeme übertragen werden.",
+      "rationale": "Drei unterstützte Übertragungswege sind dokumentiert.",
+      "updatedAt": "Vor 49 Min.",
+      "citations": [{"id":"cit-013","documentId":"doc-architecture","chunkId":"arch-6-2","section":"6.2 Event Export","page":21,"quote":"Audit- und Risikoereignisse können per Syslog, Webhook oder Streaming API an externe SIEM-Systeme übertragen werden.","relevance":"Belegt die SIEM-Anbindung."}]
+    },
+    {
+      "id": "IAM-014",
+      "category": "Governance",
+      "text": "Unterstützt die Plattform ein Vier-Augen-Prinzip für kritische Berechtigungen?",
+      "status": "SUPPORTED",
+      "reviewStatus": "OFFEN",
+      "answer": "Ja. Für kritische Rollen lassen sich mehrstufige Freigaben mit mindestens zwei unabhängigen Genehmigern konfigurieren.",
+      "rationale": "Das Genehmigungsmodell erfüllt das Vier-Augen-Prinzip.",
+      "updatedAt": "Vor 53 Min.",
+      "citations": [{"id":"cit-014","documentId":"doc-admin","chunkId":"admin-5-1","section":"5.1 Genehmigungsworkflows","page":19,"quote":"Für kritische Rollen lassen sich mehrstufige Freigaben mit mindestens zwei unabhängigen Genehmigern konfigurieren.","relevance":"Direkter Nachweis des Vier-Augen-Prinzips."}]
+    },
+    {
+      "id": "IAM-015",
+      "category": "Compliance",
+      "text": "Liegt eine aktuelle ISO-27001-Zertifizierung vor?",
+      "status": "SUPPORTED",
+      "reviewStatus": "FREIGEGEBEN",
+      "answer": "Ja. Das Informationssicherheits-Managementsystem von CertaAccess ist nach ISO/IEC 27001:2022 zertifiziert; das fiktive Zertifikat ist bis 30. Juni 2027 gültig.",
+      "rationale": "Der Compliance-Bericht enthält Norm, Scope und Gültigkeit.",
+      "updatedAt": "Vor 58 Min.",
+      "citations": [{"id":"cit-015","documentId":"doc-compliance","chunkId":"compliance-1-1","section":"1.1 Zertifizierungen","page":3,"quote":"Das Informationssicherheits-Managementsystem ist nach ISO/IEC 27001:2022 zertifiziert; das Zertifikat ist bis 30. Juni 2027 gültig.","relevance":"Aktueller Zertifizierungsnachweis."}]
+    },
+    {
+      "id": "IAM-016",
+      "category": "Schnittstellen",
+      "text": "Steht eine versionierte REST-API für Administration und Reporting bereit?",
+      "status": "SUPPORTED",
+      "reviewStatus": "OFFEN",
+      "answer": "Ja. Eine versionierte REST-API deckt Benutzer, Gruppen, Rollen, Richtlinien, Reviews und Audit-Exporte ab.",
+      "rationale": "Die API-Abdeckung wird im Architekturleitfaden spezifiziert.",
+      "updatedAt": "Vor 1 Std.",
+      "citations": [{"id":"cit-016","documentId":"doc-architecture","chunkId":"arch-5-1","section":"5.1 Public API","page":18,"quote":"Die versionierte REST-API deckt Benutzer, Gruppen, Rollen, Richtlinien, Reviews und Audit-Exporte ab.","relevance":"Belegt Versionierung und Funktionsumfang."}]
+    },
+    {
+      "id": "IAM-017",
+      "category": "Betrieb",
+      "text": "Gibt es einen dokumentierten Prozess für kritische Sicherheitsvorfälle?",
+      "status": "SUPPORTED",
+      "reviewStatus": "FREIGEGEBEN",
+      "answer": "Ja. Kritische Vorfälle werden durch ein 24/7-Bereitschaftsteam triagiert; betroffene Kunden erhalten eine Erstinformation innerhalb von 24 Stunden.",
+      "rationale": "Bereitschaft und Kommunikationsziel sind dokumentiert.",
+      "updatedAt": "Vor 1 Std.",
+      "citations": [{"id":"cit-017","documentId":"doc-service","chunkId":"service-3-1","section":"3.1 Incident Response","page":11,"quote":"Kritische Vorfälle werden durch ein 24/7-Bereitschaftsteam triagiert; betroffene Kunden erhalten eine Erstinformation innerhalb von 24 Stunden.","relevance":"Belegt Prozess und Reaktionskommunikation."}]
+    },
+    {
+      "id": "IAM-018",
+      "category": "Governance",
+      "text": "Können Segregation-of-Duties-Konflikte automatisch verhindert werden?",
+      "status": "PARTIAL",
+      "reviewStatus": "OFFEN",
+      "answer": "CertaAccess erkennt definierte SoD-Konflikte bei Rollenzuweisungen und warnt Genehmiger. Eine automatische Blockierung ist in den vorliegenden Unterlagen nicht eindeutig bestätigt.",
+      "rationale": "Konflikterkennung ist belegt; der präventive Blockierungsmodus bleibt offen.",
+      "updatedAt": "Vor 1 Std.",
+      "clarification": "Produktteam bestätigen lassen, ob Konflikte optional hart blockiert werden können.",
+      "citations": [{"id":"cit-018","documentId":"doc-admin","chunkId":"admin-5-6","section":"5.6 SoD Policies","page":24,"quote":"Definierte Segregation-of-Duties-Konflikte werden bei Rollenzuweisungen erkannt und im Genehmigungsdialog hervorgehoben.","relevance":"Belegt Erkennung, nicht Blockierung."}]
+    },
+    {
+      "id": "IAM-019",
+      "category": "Integration",
+      "text": "Ist ein zertifizierter Standard-Connector für das Kernbanksystem Avaloq verfügbar?",
+      "status": "PARTIAL",
+      "reviewStatus": "OFFEN",
+      "answer": "Ein generischer SCIM- und REST-Connector ist verfügbar. Ein zertifizierter Avaloq-Standard-Connector wird in den bereitgestellten Unterlagen nicht aufgeführt.",
+      "rationale": "Technische Anbindung ist grundsätzlich möglich, eine Produktzertifizierung ist nicht belegt.",
+      "updatedAt": "Vor 1 Std.",
+      "clarification": "Partnerkatalog auf aktuelle Avaloq-Zertifizierung prüfen.",
+      "citations": [{"id":"cit-019","documentId":"doc-architecture","chunkId":"arch-4-4","section":"4.4 Connector Framework","page":16,"quote":"Generische SCIM- und REST-Connectoren können über das Connector Framework konfiguriert werden.","relevance":"Belegt Integrationsweg, nicht den geforderten Standard-Connector."}]
+    },
+    {
+      "id": "IAM-020",
+      "category": "Aufbewahrung",
+      "text": "Wie lange werden Audit-Ereignisse standardmäßig aufbewahrt?",
+      "status": "PARTIAL",
+      "reviewStatus": "BLOCKIERT",
+      "answer": "Die Quellen widersprechen sich: Das Compliance-Konzept nennt 365 Tage Standardaufbewahrung, der ältere Servicekatalog nennt 180 Tage. Vor Freigabe ist die aktuell gültige Regelung zu bestätigen.",
+      "rationale": "Zwei belastbare Quellen enthalten unterschiedliche Werte; eine automatische Freigabe wäre riskant.",
+      "updatedAt": "Vor 1 Std.",
+      "clarification": "Service Owner um verbindliche Bestätigung der Standardaufbewahrung bitten.",
+      "conflict": {"title":"Widersprüchliche Aufbewahrungsfrist","sourceA":"Compliance-Konzept v3.2: 365 Tage","sourceB":"Servicekatalog v2.0: 180 Tage"},
+      "citations": [
+        {"id":"cit-020a","documentId":"doc-compliance","chunkId":"compliance-3-3","section":"3.3 Aufbewahrung","page":12,"quote":"Audit-Ereignisse werden standardmäßig 365 Tage aufbewahrt; längere Fristen sind vertraglich konfigurierbar.","relevance":"Aktuelle Compliance-Angabe."},
+        {"id":"cit-020b","documentId":"doc-service","chunkId":"service-4-2","section":"4.2 Datenaufbewahrung","page":14,"quote":"Die Standardaufbewahrung für Audit-Ereignisse beträgt 180 Tage.","relevance":"Abweichende Angabe in älterem Dokument."}
+      ]
+    },
+    {
+      "id": "IAM-021",
+      "category": "Support",
+      "text": "Ist deutschsprachiger 24/7-Support im Standardvertrag enthalten?",
+      "status": "PARTIAL",
+      "reviewStatus": "OFFEN",
+      "answer": "24/7-Support für kritische Störungen ist belegt. Ob die Rufbereitschaft durchgehend deutschsprachig ist, geht aus den Unterlagen nicht hervor.",
+      "rationale": "Servicezeit ist belegt, Sprachabdeckung nicht.",
+      "updatedAt": "Vor 2 Std.",
+      "clarification": "Vertrieb soll die deutschsprachige Abdeckung für P1-Fälle bestätigen.",
+      "citations": [{"id":"cit-021","documentId":"doc-service","chunkId":"service-3-4","section":"3.4 Supportmodell","page":12,"quote":"Kritische Störungen der Priorität P1 werden durch die Rufbereitschaft an 24 Stunden pro Tag und sieben Tagen pro Woche bearbeitet.","relevance":"Belegt Verfügbarkeit, nicht Sprache."}]
+    },
+    {
+      "id": "IAM-022",
+      "category": "Compliance",
+      "text": "Liegt ein aktueller BSI-C5-Typ-2-Bericht vor?",
+      "status": "NOT_FOUND",
+      "reviewStatus": "BLOCKIERT",
+      "answer": "In den bereitgestellten Dokumenten wurde kein belastbarer Nachweis für einen aktuellen BSI-C5-Typ-2-Bericht gefunden.",
+      "rationale": "Kein abgerufener Textabschnitt belegt die geforderte Prüfung.",
+      "updatedAt": "Vor 2 Std.",
+      "clarification": "Compliance-Team nach Prüfbericht, Geltungsbereich und Berichtszeitraum fragen.",
+      "citations": []
+    },
+    {
+      "id": "IAM-023",
+      "category": "Betrieb",
+      "text": "Kann der Kunde ein eigenes Hardware Security Module betreiben?",
+      "status": "NOT_FOUND",
+      "reviewStatus": "BLOCKIERT",
+      "answer": "Für ein kundenseitig betriebenes Hardware Security Module liegt in der aktuellen Evidenzbasis kein Nachweis vor.",
+      "rationale": "Die Dokumente beschreiben Verschlüsselung, aber kein Bring-Your-Own-HSM-Modell.",
+      "updatedAt": "Vor 2 Std.",
+      "clarification": "Solution Architecture soll Verfügbarkeit und unterstützte HSM-Modelle bestätigen.",
+      "citations": []
+    },
+    {
+      "id": "IAM-024",
+      "category": "Vertrag",
+      "text": "Werden Vertragsstrafen bei jeder SLA-Unterschreitung automatisch ausgezahlt?",
+      "status": "NOT_FOUND",
+      "reviewStatus": "BLOCKIERT",
+      "answer": "Die bereitgestellten technischen Unterlagen enthalten keine belastbare Aussage zu automatischen Vertragsstrafen.",
+      "rationale": "Dies ist eine kommerzielle Vertragsfrage außerhalb der vorhandenen Produktdokumentation.",
+      "updatedAt": "Vor 3 Std.",
+      "clarification": "Legal und Account Executive sollen die anwendbare SLA-Regelung prüfen.",
+      "citations": []
+    }
+  ],
+  "documents": [
+    {
+      "id":"doc-security","title":"CertaAccess Security Architecture","type":"PDF","version":"v4.1","publishedAt":"2026-08-18","owner":"Product Security","size":"2,8 MB","summary":"Authentifizierung, Risiko-Engine und Kryptografie der Plattform.","tags":["MFA","Zero Trust","Encryption"],
+      "sections":[
+        {"id":"security-2-1","title":"2.1 Starke Authentifizierung","page":6,"content":"CertaAccess unterstützt passwortlose Anmeldung und Step-up Authentication. Für privilegierte Rollen kann eine Richtlinie erzwungen werden, die ausschließlich FIDO2/WebAuthn-Passkeys oder hardwaregebundene Sicherheitsschlüssel akzeptiert. SMS wird für privilegierte Zugriffe nicht als starker Faktor angeboten."},
+        {"id":"security-2-3","title":"2.3 Adaptive Policies","page":8,"content":"Richtlinien können Gerätezustand, Netzwerkzone, Geo-Risiko, Nutzerverhalten und Sitzungskontext kombinieren. Jede Policy-Aktion wird im Audit Trail protokolliert."},
+        {"id":"security-3-2","title":"3.2 Risk Engine","page":11,"content":"Die Risiko-Engine bewertet Impossible Travel, neue Geräte, atypische Uhrzeiten und anomale Token-Nutzung in Echtzeit. Das Ergebnis kann zusätzliche Authentifizierung oder eine Sitzungssperre auslösen."},
+        {"id":"security-4-1","title":"4.1 Kryptografie","page":15,"content":"Daten werden bei der Übertragung mindestens mit TLS 1.2 und im Ruhezustand mit AES-256 verschlüsselt. Schlüssel werden getrennt von Nutzdaten verwaltet und regelmäßig rotiert."}
+      ]
+    },
+    {
+      "id":"doc-architecture","title":"Integration & Platform Guide","type":"PDF","version":"v3.8","publishedAt":"2026-07-02","owner":"Solution Architecture","size":"3,4 MB","summary":"Referenzarchitektur, Protokolle, Connectoren und öffentliche APIs.","tags":["SCIM","SAML","API"],
+      "sections":[
+        {"id":"arch-3-1","title":"3.1 Federation Gateway","page":9,"content":"Das Federation Gateway unterstützt SAML 2.0, OpenID Connect und OAuth 2.0 für angebundene Anwendungen. Signaturen und Token-Laufzeiten sind je Trust-Beziehung konfigurierbar."},
+        {"id":"arch-4-2","title":"4.2 Identity Lifecycle","page":14,"content":"SCIM 2.0 wird für Provisionierung und Deprovisionierung unterstützt; Just-in-Time-Provisionierung ist über SAML 2.0 und OIDC verfügbar. Schreiboperationen werden idempotent verarbeitet."},
+        {"id":"arch-4-4","title":"4.4 Connector Framework","page":16,"content":"Generische SCIM- und REST-Connectoren können über das Connector Framework konfiguriert werden. Kundenspezifische Feldzuordnungen werden versioniert gespeichert."},
+        {"id":"arch-5-1","title":"5.1 Public API","page":18,"content":"Die versionierte REST-API deckt Benutzer, Gruppen, Rollen, Richtlinien, Reviews und Audit-Exporte ab. Clients authentifizieren sich per OAuth 2.0 Client Credentials."},
+        {"id":"arch-6-2","title":"6.2 Event Export","page":21,"content":"Audit- und Risikoereignisse können per Syslog, Webhook oder Streaming API an externe SIEM-Systeme übertragen werden. Zustellfehler werden erneut versucht und überwacht."}
+      ]
+    },
+    {
+      "id":"doc-admin","title":"Identity Governance Admin Guide","type":"DOCX","version":"v5.0","publishedAt":"2026-09-09","owner":"Product Management","size":"1,7 MB","summary":"Berechtigungsworkflows, Access Reviews und Privileged Access.","tags":["IGA","PAM","Reviews"],
+      "sections":[
+        {"id":"admin-5-1","title":"5.1 Genehmigungsworkflows","page":19,"content":"Für kritische Rollen lassen sich mehrstufige Freigaben mit mindestens zwei unabhängigen Genehmigern konfigurieren. Eskalationen und Vertretungen sind zeitlich begrenzbar."},
+        {"id":"admin-5-4","title":"5.4 Access Reviews","page":22,"content":"Berechtigungen können mit einem Ablaufdatum versehen werden. Rezertifizierungskampagnen lassen sich quartalsweise oder ereignisbasiert auslösen. Ergebnisse werden revisionssicher protokolliert."},
+        {"id":"admin-5-6","title":"5.6 SoD Policies","page":24,"content":"Definierte Segregation-of-Duties-Konflikte werden bei Rollenzuweisungen erkannt und im Genehmigungsdialog hervorgehoben. Genehmiger müssen Abweichungen begründen."},
+        {"id":"admin-7-2","title":"7.2 Session Recording","page":31,"content":"Privilegierte Web- und SSH-Sitzungen können inklusive Metadaten aufgezeichnet, gesucht und regelbasiert archiviert werden. Der Zugriff auf Aufzeichnungen erfordert eine gesonderte Berechtigung."}
+      ]
+    },
+    {
+      "id":"doc-compliance","title":"Trust & Compliance Overview","type":"PDF","version":"v3.2","publishedAt":"2026-09-28","owner":"GRC","size":"1,2 MB","summary":"Zertifizierungen, Datenresidenz, Audit Trail und Aufbewahrung.","tags":["ISO 27001","GDPR","Audit"],
+      "sections":[
+        {"id":"compliance-1-1","title":"1.1 Zertifizierungen","page":3,"content":"Das Informationssicherheits-Managementsystem ist nach ISO/IEC 27001:2022 zertifiziert; das Zertifikat ist bis 30. Juni 2027 gültig. Der dokumentierte Scope umfasst Entwicklung und Betrieb der CertaAccess Plattform."},
+        {"id":"compliance-2-2","title":"2.2 Datenresidenz","page":7,"content":"Für EU-Mandanten werden Identitäts- und Auditdaten ausschließlich in Frankfurt und Dublin verarbeitet und repliziert. Supportzugriffe werden protokolliert und bedürfen einer Freigabe."},
+        {"id":"compliance-3-1","title":"3.1 Audit Trail","page":11,"content":"Administrative Änderungen werden unveränderbar mit Akteur, Zeitstempel, Zielobjekt sowie Vorher- und Nachher-Wert erfasst. Ein Export ist über API und SIEM-Schnittstellen möglich."},
+        {"id":"compliance-3-3","title":"3.3 Aufbewahrung","page":12,"content":"Audit-Ereignisse werden standardmäßig 365 Tage aufbewahrt; längere Fristen sind vertraglich konfigurierbar. Diese Regelung ersetzt ältere Angaben im Servicekatalog."}
+      ]
+    },
+    {
+      "id":"doc-service","title":"Cloud Servicekatalog","type":"PDF","version":"v2.0","publishedAt":"2025-11-14","owner":"Service Operations","size":"980 KB","summary":"SLA, Wiederanlauf, Support und ältere Betriebsparameter.","tags":["SLA","Support","BCM"],
+      "sections":[
+        {"id":"service-1-2","title":"1.2 Verfügbarkeit","page":4,"content":"Für die produktive CertaAccess-Plattform gilt eine monatliche Verfügbarkeitszusage von 99,95 Prozent. Wartungsfenster werden mindestens sieben Tage vorab angekündigt."},
+        {"id":"service-2-4","title":"2.4 Business Continuity","page":8,"content":"Das Recovery Time Objective beträgt vier Stunden; das Recovery Point Objective beträgt 15 Minuten. Wiederanlauftests werden halbjährlich durchgeführt."},
+        {"id":"service-3-1","title":"3.1 Incident Response","page":11,"content":"Kritische Vorfälle werden durch ein 24/7-Bereitschaftsteam triagiert; betroffene Kunden erhalten eine Erstinformation innerhalb von 24 Stunden. Statusupdates folgen bis zur Eindämmung."},
+        {"id":"service-3-4","title":"3.4 Supportmodell","page":12,"content":"Kritische Störungen der Priorität P1 werden durch die Rufbereitschaft an 24 Stunden pro Tag und sieben Tagen pro Woche bearbeitet. Für niedrigere Prioritäten gelten Geschäftszeiten."},
+        {"id":"service-4-2","title":"4.2 Datenaufbewahrung","page":14,"content":"Die Standardaufbewahrung für Audit-Ereignisse beträgt 180 Tage. Abweichende Fristen sind im Einzelvertrag festzulegen."}
+      ]
+    }
+  ],
+  "findings": [
+    {"id":"finding-001","rule":"Phishing-resistente MFA fehlt","code":"IAM-MFA-01","severity":"KRITISCH","object":"m.hoffmann@northstar.demo","description":"Das privilegierte Konto nutzt TOTP statt eines phishing-resistenten Faktors.","recommendation":"FIDO2-Sicherheitsschlüssel registrieren und Admin-Policy erzwingen.","evidence":"Rolle: Global Administrator · Faktor: TOTP · Letzter Login: vor 2 Std.","control":"NIST 800-63B · AAL2"},
+    {"id":"finding-002","rule":"Verwaistes privilegiertes Konto","code":"IAM-LCM-04","severity":"HOCH","object":"svc-legacy-sync","description":"Der hinterlegte Owner ist deaktiviert; das Konto besitzt weiterhin Directory-Write-Rechte.","recommendation":"Ownership neu zuweisen oder Konto kontrolliert stilllegen.","evidence":"Owner: a.weber (deaktiviert) · Privileg: Directory Writer · Nutzung: vor 19 Tagen","control":"ISO 27001:2022 · 5.18"},
+    {"id":"finding-003","rule":"Service-Credential überaltert","code":"IAM-KEY-03","severity":"MITTEL","object":"svc-report-export","description":"Das Client Secret ist 143 Tage alt und überschreitet das Richtlinienlimit von 90 Tagen.","recommendation":"Credential rotieren und automatische Rotation aktivieren.","evidence":"Erstellt: 23.05.2026 · Alter: 143 Tage · Limit: 90 Tage","control":"CIS Control 5.4"}
+  ]
+}

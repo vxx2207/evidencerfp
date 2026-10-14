@@ -1,0 +1,195 @@
+{
+  "schemaVersion": "1.0",
+  "datasetId": "evidence-rfp-de-golden-v1",
+  "language": "de",
+  "synthetic": true,
+  "description": "20 synthetische deutsche Fragen zur reproduzierbaren Retrieval- und Status-Evaluation.",
+  "questions": [
+    {
+      "id": "GS-001",
+      "category": "Verschlüsselung",
+      "question": "Wie werden persistente Kundeninhalte im Ruhezustand verschlüsselt?",
+      "answerable": true,
+      "expectedStatus": "SUPPORTED",
+      "expectedSources": [{"documentId": "CA-PLATFORM-2025", "sectionId": "encryption"}],
+      "requiredTerms": ["AES-256"]
+    },
+    {
+      "id": "GS-002",
+      "category": "Transport Security",
+      "question": "Welche TLS-Versionen werden für Browser und APIs unterstützt?",
+      "answerable": true,
+      "expectedStatus": "SUPPORTED",
+      "expectedSources": [{"documentId": "CA-PLATFORM-2025", "sectionId": "encryption"}],
+      "requiredTerms": ["TLS 1.3", "TLS 1.2"]
+    },
+    {
+      "id": "GS-003",
+      "category": "Datenresidenz",
+      "question": "Können europäische Kundendaten in Frankfurt gespeichert werden?",
+      "answerable": true,
+      "expectedStatus": "SUPPORTED",
+      "expectedSources": [{"documentId": "CA-PLATFORM-2025", "sectionId": "region-availability"}],
+      "requiredTerms": ["Frankfurt", "Europäischen Wirtschaftsraum"]
+    },
+    {
+      "id": "GS-004",
+      "category": "Verfügbarkeit",
+      "question": "Welche monatliche Verfügbarkeit wird im Demo-Szenario zugesagt?",
+      "answerable": true,
+      "expectedStatus": "SUPPORTED",
+      "expectedSources": [{"documentId": "CA-PLATFORM-2025", "sectionId": "region-availability"}],
+      "requiredTerms": ["99,95 %", "synthetisch"]
+    },
+    {
+      "id": "GS-005",
+      "category": "Integration",
+      "question": "Welche Standards unterstützt CertaAccess für SSO und Provisionierung?",
+      "answerable": true,
+      "expectedStatus": "SUPPORTED",
+      "expectedSources": [{"documentId": "CA-PLATFORM-2025", "sectionId": "standards"}],
+      "requiredTerms": ["SAML 2.0", "OpenID Connect", "SCIM 2.0"]
+    },
+    {
+      "id": "GS-006",
+      "category": "MFA",
+      "question": "Dürfen privilegierte Konten TOTP als einzigen zweiten Faktor verwenden?",
+      "answerable": true,
+      "expectedStatus": "PARTIAL",
+      "expectedSources": [
+        {"documentId": "CA-PLATFORM-2025", "sectionId": "legacy-mfa"},
+        {"documentId": "CA-AUTH-2026", "sectionId": "privileged-mfa"}
+      ],
+      "requiredTerms": ["Version 3.8", "Version 4.2", "phishing-resistent"]
+    },
+    {
+      "id": "GS-007",
+      "category": "MFA",
+      "question": "Welche Authentifizierungsmethoden gelten als phishing-resistent?",
+      "answerable": true,
+      "expectedStatus": "SUPPORTED",
+      "expectedSources": [{"documentId": "CA-AUTH-2026", "sectionId": "phishing-resistant-mfa"}],
+      "requiredTerms": ["FIDO2", "WebAuthn"]
+    },
+    {
+      "id": "GS-008",
+      "category": "Account Recovery",
+      "question": "Wie wird ein privilegiertes Konto wiederhergestellt?",
+      "answerable": true,
+      "expectedStatus": "SUPPORTED",
+      "expectedSources": [{"documentId": "CA-AUTH-2026", "sectionId": "recovery"}],
+      "requiredTerms": ["zwei", "30 Minuten"]
+    },
+    {
+      "id": "GS-009",
+      "category": "Passwörter",
+      "question": "Wie werden lokale Passwörter gespeichert?",
+      "answerable": true,
+      "expectedStatus": "SUPPORTED",
+      "expectedSources": [{"documentId": "CA-AUTH-2026", "sectionId": "passwords"}],
+      "requiredTerms": ["Argon2id", "Salt"]
+    },
+    {
+      "id": "GS-010",
+      "category": "Privileged Access",
+      "question": "Wie lange ist ein genehmigter Just-in-Time-Zugriff standardmäßig aktiv?",
+      "answerable": true,
+      "expectedStatus": "SUPPORTED",
+      "expectedSources": [{"documentId": "CA-PAM-2026", "sectionId": "jit-access"}],
+      "requiredTerms": ["60 Minuten"]
+    },
+    {
+      "id": "GS-011",
+      "category": "Privileged Access",
+      "question": "Welches Genehmigungsverfahren gilt für kritische privilegierte Rollen?",
+      "answerable": true,
+      "expectedStatus": "SUPPORTED",
+      "expectedSources": [{"documentId": "CA-PAM-2026", "sectionId": "four-eyes"}],
+      "requiredTerms": ["zwei Genehmigungen", "Application Owner", "Security Operations"]
+    },
+    {
+      "id": "GS-012",
+      "category": "Lifecycle",
+      "question": "Wie schnell werden über SCIM gemeldete Deaktivierungen verarbeitet?",
+      "answerable": true,
+      "expectedStatus": "SUPPORTED",
+      "expectedSources": [{"documentId": "CA-PAM-2026", "sectionId": "joiner-mover-leaver"}],
+      "requiredTerms": ["15 Minuten", "aktive Sitzungen"]
+    },
+    {
+      "id": "GS-013",
+      "category": "Service Accounts",
+      "question": "In welchem Intervall müssen statische Service-Account-Zugangsdaten rotiert werden?",
+      "answerable": true,
+      "expectedStatus": "SUPPORTED",
+      "expectedSources": [{"documentId": "CA-NHI-2026", "sectionId": "rotation"}],
+      "requiredTerms": ["90 Tage"]
+    },
+    {
+      "id": "GS-014",
+      "category": "Service Accounts",
+      "question": "Welche Authentifizierung wird für Workloads bevorzugt?",
+      "answerable": true,
+      "expectedStatus": "SUPPORTED",
+      "expectedSources": [{"documentId": "CA-NHI-2026", "sectionId": "workload-identity"}],
+      "requiredTerms": ["OIDC", "60 Minuten"]
+    },
+    {
+      "id": "GS-015",
+      "category": "Secrets",
+      "question": "Wie werden gespeicherte Secrets geschützt?",
+      "answerable": true,
+      "expectedStatus": "SUPPORTED",
+      "expectedSources": [{"documentId": "CA-NHI-2026", "sectionId": "secret-protection"}],
+      "requiredTerms": ["AES-256-GCM", "getrennt"]
+    },
+    {
+      "id": "GS-016",
+      "category": "Audit",
+      "question": "Wie lange werden Audit-Ereignisse standardmäßig aufbewahrt?",
+      "answerable": true,
+      "expectedStatus": "PARTIAL",
+      "expectedSources": [
+        {"documentId": "CA-PLATFORM-2025", "sectionId": "legacy-retention"},
+        {"documentId": "CA-SECOPS-2026", "sectionId": "retention"}
+      ],
+      "requiredTerms": ["365 Tage", "400 Tage", "Version 4.2"]
+    },
+    {
+      "id": "GS-017",
+      "category": "Monitoring",
+      "question": "Wie lassen sich Audit-Ereignisse an ein SIEM exportieren?",
+      "answerable": true,
+      "expectedStatus": "SUPPORTED",
+      "expectedSources": [{"documentId": "CA-SECOPS-2026", "sectionId": "siem-export"}],
+      "requiredTerms": ["HTTPS-Webhooks", "JSON Lines"]
+    },
+    {
+      "id": "GS-018",
+      "category": "Datenschutz",
+      "question": "Verarbeitet CertaAccess biometrische Rohdaten und wie lange werden diese gespeichert?",
+      "answerable": false,
+      "expectedStatus": "NOT_FOUND",
+      "expectedSources": [],
+      "requiredTerms": []
+    },
+    {
+      "id": "GS-019",
+      "category": "Versicherung",
+      "question": "Wie hoch ist die Cyberversicherungssumme des Anbieters?",
+      "answerable": false,
+      "expectedStatus": "NOT_FOUND",
+      "expectedSources": [],
+      "requiredTerms": []
+    },
+    {
+      "id": "GS-020",
+      "category": "Kryptografie",
+      "question": "Welche quantenresistenten Algorithmen sind bereits produktiv aktiviert?",
+      "answerable": false,
+      "expectedStatus": "NOT_FOUND",
+      "expectedSources": [],
+      "requiredTerms": []
+    }
+  ]
+}

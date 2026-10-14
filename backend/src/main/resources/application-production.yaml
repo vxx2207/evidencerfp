@@ -1,0 +1,14 @@
+spring:
+  datasource:
+    url: ${DATABASE_URL:jdbc:postgresql://localhost:5432/evidence_rfp}
+    username: ${DATABASE_USER:evidence_rfp}
+    password: ${DATABASE_PASSWORD:evidence_rfp}
+  flyway:
+    enabled: true
+    locations: classpath:db/migration
+    validate-migration-naming: true
+
+evidence-rfp:
+  ai:
+    provider: ${AI_PROVIDER:deterministic-demo}
+    enabled: ${AI_ENABLED:false}

@@ -1,0 +1,31 @@
+{
+  "schemaVersion": "1.0",
+  "title": "Nordstern Bank – Identity Security RFP (synthetisch)",
+  "synthetic": true,
+  "questions": [
+    {"id": "RFP-001", "question": "Wie werden persistente Kundeninhalte im Ruhezustand verschlüsselt?", "category": "Verschlüsselung"},
+    {"id": "RFP-002", "question": "Welche TLS-Versionen werden für Browser und APIs unterstützt?", "category": "Transport Security"},
+    {"id": "RFP-003", "question": "Können europäische Kundendaten in Frankfurt gespeichert werden?", "category": "Datenresidenz"},
+    {"id": "RFP-004", "question": "Welche monatliche Verfügbarkeit wird im Demo-Szenario zugesagt?", "category": "Verfügbarkeit"},
+    {"id": "RFP-005", "question": "Welche Standards unterstützt CertaAccess für SSO und Provisionierung?", "category": "Integration"},
+    {"id": "RFP-006", "question": "Dürfen privilegierte Konten TOTP als einzigen zweiten Faktor verwenden?", "category": "MFA"},
+    {"id": "RFP-007", "question": "Welche Authentifizierungsmethoden gelten als phishing-resistent?", "category": "MFA"},
+    {"id": "RFP-008", "question": "Wie wird ein privilegiertes Konto wiederhergestellt?", "category": "Account Recovery"},
+    {"id": "RFP-009", "question": "Wie werden lokale Passwörter gespeichert?", "category": "Passwörter"},
+    {"id": "RFP-010", "question": "Wie lange ist ein genehmigter Just-in-Time-Zugriff standardmäßig aktiv?", "category": "Privileged Access"},
+    {"id": "RFP-011", "question": "Welches Genehmigungsverfahren gilt für kritische privilegierte Rollen?", "category": "Privileged Access"},
+    {"id": "RFP-012", "question": "Wie schnell werden über SCIM gemeldete Deaktivierungen verarbeitet?", "category": "Lifecycle"},
+    {"id": "RFP-013", "question": "In welchem Intervall müssen statische Service-Account-Zugangsdaten rotiert werden?", "category": "Service Accounts"},
+    {"id": "RFP-014", "question": "Welche Authentifizierung wird für Workloads bevorzugt?", "category": "Service Accounts"},
+    {"id": "RFP-015", "question": "Wie werden gespeicherte Secrets geschützt?", "category": "Secrets"},
+    {"id": "RFP-016", "question": "Wie lange werden Audit-Ereignisse standardmäßig aufbewahrt?", "category": "Audit"},
+    {"id": "RFP-017", "question": "Wie lassen sich Audit-Ereignisse an ein SIEM exportieren?", "category": "Monitoring"},
+    {"id": "RFP-018", "question": "Verarbeitet CertaAccess biometrische Rohdaten und wie lange werden diese gespeichert?", "category": "Datenschutz"},
+    {"id": "RFP-019", "question": "Wie hoch ist die Cyberversicherungssumme des Anbieters?", "category": "Versicherung"},
+    {"id": "RFP-020", "question": "Welche quantenresistenten Algorithmen sind bereits produktiv aktiviert?", "category": "Kryptografie"},
+    {"id": "RFP-021", "question": "Gibt es im bereitgestellten Snapshot ein privilegiertes Konto ohne phishing-resistente MFA?", "category": "IAM Kontrollnachweis"},
+    {"id": "RFP-022", "question": "Gibt es im bereitgestellten Snapshot ein verwaistes privilegiertes Konto?", "category": "IAM Kontrollnachweis"},
+    {"id": "RFP-023", "question": "Gibt es Service-Account-Zugangsdaten, die älter als 90 Tage sind?", "category": "IAM Kontrollnachweis"},
+    {"id": "RFP-024", "question": "Ist der exportierte Nachweis rechtlich als Compliance-Zertifikat anerkannt?", "category": "Rechtliche Bewertung"}
+  ]
+}

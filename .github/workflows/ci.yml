@@ -1,0 +1,91 @@
+name: CI
+
+on:
+  push:
+    branches: ["main"]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  backend:
+    name: Backend · Java 21
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: backend
+    steps:
+      - name: Repository auschecken
+        uses: actions/checkout@v4
+
+      - name: Java 21 einrichten
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "21"
+          cache: maven
+          cache-dependency-path: backend/pom.xml
+
+      - name: Maven Wrapper ausführbar machen
+        run: chmod +x mvnw
+
+      - name: Backend testen
+        run: ./mvnw --batch-mode --no-transfer-progress verify
+
+      - name: Optionale KI-Adapter kompilieren
+        run: |
+          ./mvnw --batch-mode --no-transfer-progress -Pollama -DskipTests compile
+          ./mvnw --batch-mode --no-transfer-progress -Popenai -DskipTests compile
+
+  frontend:
+    name: Frontend · Node 22
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - name: Repository auschecken
+        uses: actions/checkout@v4
+
+      - name: Node.js 22 einrichten
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Abhängigkeiten installieren
+        run: npm ci
+
+      - name: Frontend testen
+        run: npm test -- --passWithNoTests
+
+      - name: Statische Demo bauen
+        env:
+          VITE_APP_MODE: demo
+        run: npm run build
+
+  repository-contract:
+    name: Demo-Daten und Compose prüfen
+    runs-on: ubuntu-latest
+    steps:
+      - name: Repository auschecken
+        uses: actions/checkout@v4
+
+      - name: JSON und erwartete Anzahl prüfen
+        shell: bash
+        run: |
+          jq empty examples/identity-snapshot.json examples/golden-set.json examples/rfp-questions.json
+          test "$(jq '.questions | length' examples/golden-set.json)" -eq 20
+          test "$(jq '.questions | length' examples/rfp-questions.json)" -eq 24
+          test "$(find examples/source -maxdepth 1 -type f -name '*.md' ! -name 'rfp-fragen.md' | wc -l)" -eq 5
+          test "$(grep -Ec '^\| RFP-[0-9]{3} \|' examples/source/rfp-fragen.md)" -eq 24
+
+      - name: Docker Compose validieren
+        run: docker compose config --quiet

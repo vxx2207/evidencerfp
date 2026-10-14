@@ -1,0 +1,76 @@
+{
+  "capturedAt": "2026-10-01T00:00:00Z",
+  "accounts": [
+    {
+      "id": "acc-lena-admin",
+      "displayName": "Lena Hoffmann – Plattformadministration (synthetisch)",
+      "privileged": true,
+      "enabled": true,
+      "mfaMethods": ["PASSWORD", "WEBAUTHN"],
+      "ownerId": "id-lena-hoffmann"
+    },
+    {
+      "id": "acc-mara-admin",
+      "displayName": "Mara König – Datenbankadministration (synthetisch)",
+      "privileged": true,
+      "enabled": true,
+      "mfaMethods": ["PASSWORD", "TOTP"],
+      "ownerId": "id-mara-koenig"
+    },
+    {
+      "id": "acc-legacy-admin",
+      "displayName": "Legacy Administration (synthetisch)",
+      "privileged": true,
+      "enabled": true,
+      "mfaMethods": ["HARDWARE-KEY"],
+      "ownerId": null
+    },
+    {
+      "id": "acc-breakglass",
+      "displayName": "Break-glass EU (synthetisch)",
+      "privileged": true,
+      "enabled": true,
+      "mfaMethods": ["FIDO2"],
+      "ownerId": "id-security-duty"
+    },
+    {
+      "id": "acc-jona-user",
+      "displayName": "Jona Richter – Standardkonto (synthetisch)",
+      "privileged": false,
+      "enabled": true,
+      "mfaMethods": ["TOTP"],
+      "ownerId": "id-jona-richter"
+    },
+    {
+      "id": "acc-disabled-admin",
+      "displayName": "Deaktiviertes Administrationskonto (synthetisch)",
+      "privileged": true,
+      "enabled": false,
+      "mfaMethods": [],
+      "ownerId": null
+    }
+  ],
+  "serviceAccounts": [
+    {
+      "id": "svc-reporting",
+      "displayName": "Reporting Export (synthetisch)",
+      "enabled": true,
+      "credentialLastRotatedAt": "2026-05-15T09:00:00Z",
+      "ownerId": "team-data-platform"
+    },
+    {
+      "id": "svc-payments",
+      "displayName": "Payments Gateway (synthetisch)",
+      "enabled": true,
+      "credentialLastRotatedAt": "2026-09-15T09:00:00Z",
+      "ownerId": "team-payments"
+    },
+    {
+      "id": "svc-federated-ci",
+      "displayName": "CI Workload Identity (synthetisch, deaktiviert)",
+      "enabled": false,
+      "credentialLastRotatedAt": null,
+      "ownerId": "team-platform"
+    }
+  ]
+}

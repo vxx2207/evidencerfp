@@ -11,6 +11,8 @@ import {
   ShieldAlert,
   UserRoundX,
 } from 'lucide-react';
+import { useState } from 'react';
+import { formatAnalysisDateTime } from '../format';
 import type { Analysis, IamFinding } from '../types';
 import { PageIntro } from './Chrome';
 
@@ -23,20 +25,27 @@ function FindingIcon({ finding }: { finding: IamFinding }) {
 }
 
 export function Findings({ analysis }: { analysis: Analysis }) {
+  const [expandedFindingId, setExpandedFindingId] = useState<string | null>(null);
+  const severityCounts = {
+    critical: analysis.findings.filter((finding) => finding.severity === 'KRITISCH').length,
+    high: analysis.findings.filter((finding) => finding.severity === 'HOCH').length,
+    medium: analysis.findings.filter((finding) => finding.severity === 'MITTEL').length,
+  };
+
   return (
     <div className="page findings-page">
       <PageIntro
         eyebrow="Identity Posture"
         title="IAM Findings"
-        description="Deterministische Kontrollen gegen den synthetischen Nordstern-Tenant – transparent, reproduzierbar und ohne KI-Interpretation."
-        action={<div className="scan-stamp"><ScanLine size={18} /><span><strong>Scan vollständig</strong><small>2.418 Identitäten · 08:43 Uhr</small></span></div>}
+        description={`Deterministische Kontrollen gegen den synthetischen ${analysis.customer}-Tenant – transparent, reproduzierbar und ohne KI-Interpretation.`}
+        action={<div className="scan-stamp"><ScanLine size={18} /><span><strong>{analysis.status === 'COMPLETED' ? 'Scan vollständig' : `Scan ${analysis.progress} %`}</strong><small>{analysis.findings.length} Befunde · {formatAnalysisDateTime(analysis.createdAt)}</small></span></div>}
       />
 
       <section className="finding-summary">
-        <div><span className="summary-icon critical"><AlertOctagon size={18} /></span><span><strong>1</strong><small>Kritisch</small></span></div>
-        <div><span className="summary-icon high"><ShieldAlert size={18} /></span><span><strong>1</strong><small>Hoch</small></span></div>
-        <div><span className="summary-icon medium"><Clock3 size={18} /></span><span><strong>1</strong><small>Mittel</small></span></div>
-        <div className="coverage-stat"><span>Kontrollabdeckung</span><strong>3 / 3 Regeln ausgeführt</strong><div><i /></div></div>
+        <div><span className="summary-icon critical"><AlertOctagon size={18} /></span><span><strong>{severityCounts.critical}</strong><small>Kritisch</small></span></div>
+        <div><span className="summary-icon high"><ShieldAlert size={18} /></span><span><strong>{severityCounts.high}</strong><small>Hoch</small></span></div>
+        <div><span className="summary-icon medium"><Clock3 size={18} /></span><span><strong>{severityCounts.medium}</strong><small>Mittel</small></span></div>
+        <div className="coverage-stat"><span>Analysefortschritt</span><strong>{analysis.status === 'COMPLETED' ? 'Abgeschlossen' : `${analysis.progress} %`}</strong><div><i style={{ width: `${analysis.progress}%` }} /></div></div>
       </section>
 
       <section className="finding-grid">
@@ -51,7 +60,8 @@ export function Findings({ analysis }: { analysis: Analysis }) {
             <div className="affected-object"><span><Braces size={14} /> Betroffenes Objekt</span><code>{finding.object}</code></div>
             <div className="finding-evidence"><span>Kontrollnachweis</span><p>{finding.evidence}</p></div>
             <div className="finding-recommendation"><div><CheckCircle2 size={16} /><strong>Empfohlene Maßnahme</strong></div><p>{finding.recommendation}</p></div>
-            <div className="finding-footer"><span><LockKeyhole size={13} /> {finding.control}</span><button>Technische Details <ArrowUpRight size={13} /></button></div>
+            {expandedFindingId === finding.id && <div className="finding-technical-details" id={`finding-details-${finding.id}`}><code>rule={finding.code}<br />severity={finding.severity}<br />object={finding.object}<br />control={finding.control}</code></div>}
+            <div className="finding-footer"><span><LockKeyhole size={13} /> {finding.control}</span><button aria-expanded={expandedFindingId === finding.id} aria-controls={`finding-details-${finding.id}`} onClick={() => setExpandedFindingId((current) => current === finding.id ? null : finding.id)}>{expandedFindingId === finding.id ? 'Details schließen' : 'Technische Details'} <ArrowUpRight size={13} /></button></div>
             <span className="finding-number">0{index + 1}</span>
           </article>
         ))}

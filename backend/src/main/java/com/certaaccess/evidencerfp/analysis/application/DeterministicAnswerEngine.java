@@ -14,35 +14,20 @@ import com.certaaccess.evidencerfp.evidence.RfpQuestion;
 import org.springframework.stereotype.Component;
 import org.springframework.context.annotation.Profile;
 
-import java.time.Clock;
-import java.time.LocalDate;
-import java.time.ZoneOffset;
 import java.util.Arrays;
 import java.util.Comparator;
-import java.util.HashSet;
 import java.util.List;
-import java.util.Locale;
 import java.util.Set;
-import java.util.regex.Pattern;
 
 @Component
 @Profile("!ollama & !openai")
 public class DeterministicAnswerEngine implements AnswerGenerator {
-    private static final Pattern NEGATIVE = Pattern.compile(
-            "(?i)\\b(?:nicht unterstützt|nicht verfügbar|nicht als|deaktiviert|verhindert|keine?\\s+Unterstützung|ausgeschlossen)\\b");
-    private static final Pattern POSITIVE = Pattern.compile(
-            "(?i)\\b(?:unterstützt|verfügbar|aktiviert|ermöglicht|bietet|konnten|zulassen|verwenden)\\b");
-    private static final Pattern CONFLICT_HINT = Pattern.compile(
-            "(?i)\\b(?:widerspr\\p{L}*|historisch\\p{L}*|ersetzt\\s+den\\s+älter\\p{L}*)\\b");
-    private static final Pattern FACT_VALUE = Pattern.compile(
-            "(?i)\\b(\\d{2,4})\\s*(tage|minuten|stunden|prozent|%)\\b");
-
     private final CitationVerifier citationVerifier;
-    private final Clock clock;
+    private final EvidenceAnswerPolicy evidenceAnswerPolicy;
 
-    public DeterministicAnswerEngine(CitationVerifier citationVerifier, Clock clock) {
+    public DeterministicAnswerEngine(CitationVerifier citationVerifier, EvidenceAnswerPolicy evidenceAnswerPolicy) {
         this.citationVerifier = citationVerifier;
-        this.clock = clock;
+        this.evidenceAnswerPolicy = evidenceAnswerPolicy;
     }
 
     @Override
@@ -74,33 +59,13 @@ public class DeterministicAnswerEngine implements AnswerGenerator {
                     "Welche verifizierbare Textpassage beantwortet diese Frage?", List.of(invalid));
         }
 
-        List<Finding> findings = new java.util.ArrayList<>();
-        boolean conflict = hasConflict(citedChunks, questionTerms);
-        if (conflict) {
-            findings.add(Finding.of(FindingType.CONFLICTING_EVIDENCE, FindingSeverity.HIGH,
-                    "EVIDENCE-002", "Widersprüchliche Quellen",
-                    "Die am besten passenden Quellen enthalten positive und negative Aussagen zur Anforderung.",
-                    question.id(), "Die gültige Aussage durch den fachlichen Owner bestätigen lassen.", true));
-        }
-        LocalDate staleBefore = LocalDate.ofInstant(clock.instant(), ZoneOffset.UTC).minusDays(365);
-        boolean stale = citedChunks.stream().anyMatch(chunk -> chunk.documentDate() != null
-                && chunk.documentDate().isBefore(staleBefore));
-        if (stale) {
-            findings.add(Finding.of(FindingType.STALE_DOCUMENT, FindingSeverity.WARNING,
-                    "EVIDENCE-003", "Veralteter Nachweis",
-                    "Mindestens eine zitierte Quelle ist älter als zwölf Monate.", question.id(),
-                    "Eine aktuelle, freigegebene Dokumentversion anfordern.", true));
-        }
-
-        AnswerStatus status = !conflict && !stale ? AnswerStatus.SUPPORTED : AnswerStatus.PARTIAL;
         String answer = citations.size() == 1
                 ? "Die bereitgestellte Quelle dokumentiert: " + citations.getFirst().quote()
                 : "Die bereitgestellten Quellen dokumentieren: " + citations.getFirst().quote()
                     + " Ergänzend: " + citations.get(1).quote();
-        String clarification = status == AnswerStatus.PARTIAL
-                ? "Kann der fachliche Owner die Aussage und Aktualität der Belege verbindlich bestätigen?" : null;
-        return new QuestionResult(question.id(), question.question(), question.category(), answer, status,
-                ReviewStatus.DRAFT, citations, clarification, findings);
+        QuestionResult draft = new QuestionResult(question.id(), question.question(), question.category(), answer,
+                AnswerStatus.SUPPORTED, ReviewStatus.DRAFT, citations, null, List.of());
+        return evidenceAnswerPolicy.enforce(question, draft, retrievedChunks);
     }
 
     private QuestionResult notFound(RfpQuestion question) {
@@ -124,19 +89,4 @@ public class DeterministicAnswerEngine implements AnswerGenerator {
         return selected.length() <= 360 ? selected : selected.substring(0, 360).trim();
     }
 
-    private boolean hasConflict(List<EvidenceChunk> chunks, Set<String> questionTerms) {
-        if (chunks.size() < 2 || chunks.get(0).documentName().equals(chunks.get(1).documentName())) return false;
-        List<String> relevantTexts = chunks.stream().map(chunk -> quote(chunk.content(), questionTerms)).toList();
-        if (relevantTexts.stream().anyMatch(text -> CONFLICT_HINT.matcher(text).find())) return true;
-        Set<String> values = new HashSet<>();
-        relevantTexts.forEach(text -> {
-            var matcher = FACT_VALUE.matcher(text);
-            while (matcher.find()) values.add(matcher.group(1) + matcher.group(2).toLowerCase(Locale.GERMAN));
-        });
-        if (values.size() > 1) return true;
-        boolean negative = relevantTexts.stream().anyMatch(text -> NEGATIVE.matcher(text).find());
-        boolean positive = relevantTexts.stream().anyMatch(text -> !NEGATIVE.matcher(text).find()
-                && POSITIVE.matcher(text).find());
-        return negative && positive;
-    }
 }

@@ -25,6 +25,9 @@ springdoc:
     path: /swagger-ui.html
 
 evidence-rfp:
+  analysis:
+    workers: 2
+    queue-capacity: 4
   uploads:
     max-file-bytes: 10485760
     max-total-bytes: 52428800

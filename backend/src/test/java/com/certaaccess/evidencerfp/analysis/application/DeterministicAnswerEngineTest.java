@@ -17,7 +17,8 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 class DeterministicAnswerEngineTest {
     private final DeterministicAnswerEngine engine = new DeterministicAnswerEngine(
-            new CitationVerifier(), Clock.fixed(Instant.parse("2026-10-14T00:00:00Z"), ZoneOffset.UTC));
+            new CitationVerifier(), new EvidenceAnswerPolicy(
+                    Clock.fixed(Instant.parse("2026-10-14T00:00:00Z"), ZoneOffset.UTC), 365));
 
     @Test
     void flagsDifferentRetentionValuesAsConflict() {

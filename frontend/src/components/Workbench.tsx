@@ -79,11 +79,13 @@ export function Workbench({
   const [answer, setAnswer] = useState(activeQuestion.answer);
   const [selectedCitation, setSelectedCitation] = useState<Citation | null>(null);
   const [saving, setSaving] = useState(false);
+  const [copyState, setCopyState] = useState<'idle' | 'copied' | 'failed'>('idle');
 
   useEffect(() => {
     setAnswer(activeQuestion.answer);
     setEditing(false);
     setSelectedCitation(null);
+    setCopyState('idle');
   }, [activeQuestion.id, activeQuestion.answer]);
 
   const visibleQuestions = useMemo(() => analysis.questions.filter((question) => `${question.id} ${question.text}`.toLowerCase().includes(query.toLowerCase())), [analysis.questions, query]);
@@ -103,6 +105,16 @@ export function Workbench({
   function move(offset: number) {
     const next = analysis.questions[activeIndex + offset];
     if (next) onSelectQuestion(next);
+  }
+
+  async function copyClarification() {
+    if (!activeQuestion.clarification) return;
+    try {
+      await navigator.clipboard.writeText(activeQuestion.clarification);
+      setCopyState('copied');
+    } catch {
+      setCopyState('failed');
+    }
   }
 
   const approvalBlocked = activeQuestion.status === 'NOT_FOUND' || Boolean(activeQuestion.conflict);
@@ -183,7 +195,7 @@ export function Workbench({
           )}
 
           {activeQuestion.clarification && (
-            <section className="clarification-card"><div className="clarification-label"><span>Interne Klärungsfrage</span><LockKeyhole size={14} /></div><p>{activeQuestion.clarification}</p><button className="text-button">In Zwischenablage kopieren</button></section>
+            <section className="clarification-card"><div className="clarification-label"><span>Interne Klärungsfrage</span><LockKeyhole size={14} /></div><p>{activeQuestion.clarification}</p><button className="text-button" onClick={() => void copyClarification()}>{copyState === 'copied' ? 'Kopiert' : copyState === 'failed' ? 'Kopieren fehlgeschlagen' : 'In Zwischenablage kopieren'}</button></section>
           )}
 
           <div className="review-actions">

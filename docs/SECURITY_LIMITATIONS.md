@@ -13,6 +13,8 @@
 
 Unterstützt werden XLSX für Fragen sowie textbasierte PDF- und DOCX-Dateien für Evidenz. Zulässige Endung, MIME-Type und Magic Bytes müssen übereinstimmen. Dateianzahl, Einzelgröße und Gesamtgröße sind begrenzt. Dateinamen werden nie als Speicherpfad verwendet. Ein eigenes Dekompressions- und Parserzeitbudget ist im MVP noch nicht implementiert.
 
+Nach der Validierung werden Uploads für den lokalen Hintergrundjob im Arbeitsspeicher gepuffert. Worker- und Queue-Anzahl sind begrenzt, dennoch ist dieser Mechanismus nur für die lokale Einzelnutzer-Demo ausgelegt. Ein produktiver Dienst benötigt externes Job- und Objektspeicher-Management, Quoten und belastbare Backpressure.
+
 Die konkrete Konfiguration des Backends ist maßgeblich; öffentlich dokumentierte Limits dürfen nicht großzügiger sein als die tatsächlich erzwungenen Werte.
 
 ## Datenschutz und Datenhaltung

@@ -51,7 +51,8 @@ public final class Analysis {
         if (reviewStatus == ReviewStatus.APPROVED
                 && (current.answerStatus() == AnswerStatus.NOT_FOUND
                 || current.findings().stream().anyMatch(Finding::blocksApproval))) {
-            throw new IllegalStateException("Die Frage kann wegen blockierender Findings nicht freigegeben werden.");
+            throw new ApprovalBlockedException(
+                    "Die Frage kann wegen blockierender Findings nicht freigegeben werden.");
         }
         QuestionResult updated = current.update(answer, reviewStatus);
         questions.put(questionId, updated);

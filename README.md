@@ -178,7 +178,7 @@ In diesem Modus verlassen Dokumentpassagen die lokale Umgebung. Für reale Kunde
 | `GET` | `/api/v1/analyses/{id}/export.xlsx` | Geprüftes Evidence Pack exportieren |
 | `DELETE` | `/api/v1/analyses/{id}` | Analyse und zugehörige lokale Daten löschen |
 
-Der aktuelle MVP verarbeitet einen Import innerhalb des `POST`-Requests und liefert danach `COMPLETED`. Die Status-Ressource ist bereits vorhanden, damit ein späterer Job-Runner ohne Änderung am Frontend ergänzt werden kann.
+Der Import ist als lokaler Hintergrundjob umgesetzt: `POST /analyses` validiert und puffert die Dateien, liefert sofort eine Analyse-ID mit `PROCESSING`, und das Frontend fragt anschließend den Status bis `COMPLETED` oder `FAILED` ab. Die eigentliche Ergebnisressource wird erst nach erfolgreichem Abschluss geladen. Die kleine, begrenzte Worker-Queue ist für die lokale Einzelnutzer-Demo gedacht – nicht für einen öffentlichen Mehrbenutzerbetrieb.
 
 ## Portfolio-Unterlagen
 

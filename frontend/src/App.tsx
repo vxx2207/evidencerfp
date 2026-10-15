@@ -8,8 +8,9 @@ import { Questions } from './components/Questions';
 import { ReviewExport } from './components/ReviewExport';
 import { Workbench } from './components/Workbench';
 import { ImportAnalysis } from './components/ImportAnalysis';
+import { evidencePackFilename } from './format';
 import { createAnalysisGateway } from './gateways';
-import type { Analysis, AppView, Capabilities, Question, QuestionUpdate } from './types';
+import type { Analysis, AnalysisProgress, AppView, Capabilities, Question, QuestionUpdate } from './types';
 import './styles.css';
 
 const pageTitles: Record<AppView, string> = {
@@ -104,7 +105,7 @@ export default function App() {
       const url = URL.createObjectURL(blob);
       const link = document.createElement('a');
       link.href = url;
-      link.download = `Nordstern_Evidence_Pack.${capabilities.mode === 'api' ? 'xlsx' : 'csv'}`;
+      link.download = evidencePackFilename(analysis.customer, capabilities.mode === 'api' ? 'xlsx' : 'csv');
       document.body.appendChild(link);
       link.click();
       link.remove();
@@ -117,8 +118,11 @@ export default function App() {
     }
   }
 
-  async function importAnalysis(input: Parameters<typeof gateway.createAnalysis>[0]) {
-    const imported = await gateway.createAnalysis(input);
+  async function importAnalysis(
+    input: Parameters<typeof gateway.createAnalysis>[0],
+    onProgress: (progress: AnalysisProgress) => void,
+  ) {
+    const imported = await gateway.createAnalysis(input, onProgress);
     setAnalysis(imported);
     setActiveQuestionId(imported.questions[0]?.id ?? '');
     setView('dashboard');
@@ -148,7 +152,7 @@ export default function App() {
           {view === 'review' && <ReviewExport analysis={analysis} capabilities={capabilities} onOpenQuestion={openQuestion} onNavigate={setView} onExport={() => void exportAnalysis()} exporting={exporting} />}
         </div>
       </div>
-      <GlobalSearch open={searchOpen} onClose={() => setSearchOpen(false)} onNavigate={setView} />
+      <GlobalSearch analysis={analysis} open={searchOpen} onClose={() => setSearchOpen(false)} onNavigate={setView} onOpenQuestion={openQuestion} />
       <Toast message={toast} onClose={() => setToast(null)} />
       <ImportAnalysis open={importOpen} onClose={() => setImportOpen(false)} onSubmit={importAnalysis} />
       <span className="global-demo-ribbon">SYNTHETISCHE DATEN · PORTFOLIO DEMO</span>

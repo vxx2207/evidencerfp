@@ -14,6 +14,7 @@ import org.testcontainers.junit.jupiter.Testcontainers;
 import org.testcontainers.utility.DockerImageName;
 
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 import tools.jackson.databind.ObjectMapper;
 
@@ -45,6 +46,29 @@ class PgVectorEvidenceRetrieverIntegrationTest {
     }
 
     @Test
+    void embedsTheCorpusOnlyOnceForABatchOfQuestions() {
+        PGSimpleDataSource dataSource = dataSource();
+        Flyway.configure().dataSource(dataSource).load().migrate();
+        CountingEmbeddingProvider embeddings = new CountingEmbeddingProvider();
+        PgVectorEvidenceRetriever retriever = new PgVectorEvidenceRetriever(
+                JdbcClient.create(dataSource), embeddings);
+        EvidenceChunk authentication = chunk("FIDO2 Passkeys phishing-resistente Authentifizierung");
+        EvidenceChunk backup = chunk("Backups und Wiederherstellung werden jährlich getestet");
+        List<RfpQuestion> questions = List.of(
+                new RfpQuestion("RFP-001", "Werden FIDO2 Passkeys unterstützt?", "Identität"),
+                new RfpQuestion("RFP-002", "Wie werden Backups getestet?", "Betrieb"));
+
+        Map<String, List<EvidenceChunk>> results = retriever.retrieveBatch(
+                questions, List.of(authentication, backup), 1);
+
+        assertThat(results.get("RFP-001")).extracting(EvidenceChunk::id)
+                .containsExactly(authentication.id());
+        assertThat(results.get("RFP-002")).extracting(EvidenceChunk::id)
+                .containsExactly(backup.id());
+        assertThat(embeddings.calls).isEqualTo(4);
+    }
+
+    @Test
     void persistsAndReloadsTheCompleteReviewState() {
         PGSimpleDataSource dataSource = dataSource();
         Flyway.configure().dataSource(dataSource).load().migrate();
@@ -72,5 +96,16 @@ class PgVectorEvidenceRetrieverIntegrationTest {
 
     private EvidenceChunk chunk(String content) {
         return new EvidenceChunk(UUID.randomUUID(), "test.pdf", "application/pdf", "Seite 1", content, null);
+    }
+
+    private static final class CountingEmbeddingProvider implements EvidenceEmbeddingProvider {
+        private final HashingEvidenceEmbeddingProvider delegate = new HashingEvidenceEmbeddingProvider();
+        private int calls;
+
+        @Override
+        public float[] embed(String text) {
+            calls++;
+            return delegate.embed(text);
+        }
     }
 }

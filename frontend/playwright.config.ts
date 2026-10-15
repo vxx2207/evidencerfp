@@ -1,5 +1,7 @@
 import { defineConfig, devices } from '@playwright/test';
 
+const useBuiltPreview = process.env.PLAYWRIGHT_USE_PREVIEW === 'true';
+
 export default defineConfig({
   testDir: './e2e',
   fullyParallel: true,
@@ -9,7 +11,9 @@ export default defineConfig({
     trace: 'on-first-retry',
   },
   webServer: {
-    command: 'npm run dev -- --host 127.0.0.1 --port 4173',
+    command: useBuiltPreview
+      ? 'npm run preview -- --host 127.0.0.1 --port 4173'
+      : 'npm run dev -- --host 127.0.0.1 --port 4173',
     url: 'http://127.0.0.1:4173',
     reuseExistingServer: true,
   },

@@ -1,6 +1,7 @@
 import type {
   Analysis,
   AnalysisInput,
+  AnalysisProgress,
   AnalysisGateway,
   AnswerStatus,
   Capabilities,
@@ -133,12 +134,48 @@ function mapFinding(raw: JsonRecord): IamFinding {
 }
 
 export class ApiAnalysisGateway implements AnalysisGateway {
-  constructor(private readonly baseUrl = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8080') {}
+  constructor(
+    private readonly baseUrl = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8080',
+    private readonly pollIntervalMs = 750,
+    private readonly maxPolls = 400,
+  ) {}
 
   private async json(path: string, init?: RequestInit): Promise<JsonRecord> {
     const response = await fetch(`${this.baseUrl}${path}`, init);
-    if (!response.ok) throw new Error(`API-Fehler ${response.status}: ${response.statusText}`);
+    if (!response.ok) {
+      let detail = '';
+      try {
+        const problem = await response.json() as JsonRecord;
+        detail = text(problem.detail ?? problem.title);
+      } catch {
+        // Nicht jede Infrastrukturantwort enthält RFC-9457-JSON.
+      }
+      throw new Error(detail || `API-Fehler ${response.status}: ${response.statusText}`);
+    }
     return response.json() as Promise<JsonRecord>;
+  }
+
+  private async waitForCompletion(
+    id: string,
+    initialStatus: JsonRecord,
+    onProgress?: (progress: AnalysisProgress) => void,
+  ): Promise<void> {
+    let status = initialStatus;
+    for (let attempt = 0; attempt < this.maxPolls; attempt += 1) {
+      const state = text(status.status).toUpperCase();
+      onProgress?.({
+        status: state === 'COMPLETED' ? 'COMPLETED' : 'PROCESSING',
+        percent: Number(status.progressPercent ?? (state === 'COMPLETED' ? 100 : 50)),
+        phase: text(status.phase, state === 'COMPLETED' ? 'Analyse abgeschlossen' : 'Evidenz wird verarbeitet'),
+      });
+      if (state === 'COMPLETED') return;
+      if (state === 'FAILED') {
+        throw new Error('Die Analyse ist fehlgeschlagen. Bitte Dateien und Backend-Protokoll prüfen.');
+      }
+      await new Promise((resolve) => window.setTimeout(resolve, this.pollIntervalMs));
+      status = await this.json(`/api/v1/analyses/${id}`);
+    }
+    throw new Error('Die Analyse dauert länger als erwartet. Sie läuft möglicherweise im Hintergrund weiter.');
   }
 
   async getCapabilities(): Promise<Capabilities> {
@@ -173,7 +210,7 @@ export class ApiAnalysisGateway implements AnalysisGateway {
     };
   }
 
-  async createAnalysis(input: AnalysisInput): Promise<Analysis> {
+  async createAnalysis(input: AnalysisInput, onProgress?: (progress: AnalysisProgress) => void): Promise<Analysis> {
     const body = new FormData();
     body.append('rfp', input.rfp);
     input.evidence.forEach((file) => body.append('evidence', file));
@@ -182,6 +219,7 @@ export class ApiAnalysisGateway implements AnalysisGateway {
     const status = await this.json(`/api/v1/analyses?${query.toString()}`, { method: 'POST', body });
     const id = text(status.id);
     if (!id) throw new Error('Die API hat keine Analyse-ID zurückgegeben.');
+    await this.waitForCompletion(id, status, onProgress);
     return this.getAnalysis(id);
   }
 

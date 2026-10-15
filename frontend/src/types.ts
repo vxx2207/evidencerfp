@@ -94,10 +94,16 @@ export interface AnalysisInput {
   iamSnapshot?: File;
 }
 
+export interface AnalysisProgress {
+  status: 'PROCESSING' | 'COMPLETED';
+  percent: number;
+  phase: string;
+}
+
 export interface AnalysisGateway {
   getCapabilities(): Promise<Capabilities>;
   getAnalysis(id?: string): Promise<Analysis>;
-  createAnalysis(input: AnalysisInput): Promise<Analysis>;
+  createAnalysis(input: AnalysisInput, onProgress?: (progress: AnalysisProgress) => void): Promise<Analysis>;
   updateQuestion(analysisId: string, questionId: string, update: QuestionUpdate): Promise<Question>;
   exportAnalysis(analysis: Analysis): Promise<Blob>;
 }

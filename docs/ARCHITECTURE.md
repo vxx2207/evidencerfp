@@ -49,13 +49,14 @@ flowchart TB
 ## Datenfluss
 
 1. Ein Upload wird vor dem Parsen anhand Erweiterung, deklariertem MIME-Type, Magic Bytes und Größenlimit geprüft.
-2. Text wird normalisiert, mit Dokument- und Abschnittsmetadaten in Chunks zerlegt und eingebettet. Im Offline-Production-Profil entstehen deterministische Hash-Vektoren; mit `ollama` liefert `bge-m3` semantische 1.024-dimensionale Embeddings.
-3. Je Frage werden höchstens sechs relevante Chunks abgerufen und als nicht vertrauenswürdiger Kontext an das Modell übergeben.
-4. Das Modell liefert ein strukturiertes Ergebnis. Der Server akzeptiert nur bekannte Statuswerte und Zitationen auf abgerufene Chunks.
-5. Eine Zitation ist nur gültig, wenn der normalisierte Zitatausschnitt im referenzierten Chunk enthalten ist.
-6. Der IAM-Snapshot wird getrennt davon durch deterministische Regeln verarbeitet.
-7. Konflikte, veraltete Quellen und fehlende Belege werden als Findings gespeichert und beeinflussen den Freigabestatus.
-8. Nur der vom Menschen geprüfte Stand wird exportiert.
+2. Nach synchroner Upload-Validierung erhält der Client eine Analyse-ID; die Verarbeitung läuft in einer begrenzten lokalen Worker-Queue. Der Browser verfolgt den Lauf über die Status-Ressource.
+3. Text wird normalisiert, mit Dokument- und Abschnittsmetadaten in Chunks zerlegt und einmal pro Analyse eingebettet. Im Offline-Production-Profil entstehen deterministische Hash-Vektoren; mit `ollama` liefert `bge-m3` semantische 1.024-dimensionale Embeddings.
+4. Je Frage werden aus demselben kurzlebigen Index höchstens sechs relevante Chunks abgerufen und als nicht vertrauenswürdiger Kontext an das Modell übergeben.
+5. Das Modell liefert ein strukturiertes Ergebnis. Der Server akzeptiert nur bekannte Statuswerte und Zitationen auf abgerufene Chunks.
+6. Eine Zitation ist nur gültig, wenn der normalisierte Zitatausschnitt im referenzierten Chunk enthalten ist.
+7. Der IAM-Snapshot wird getrennt davon durch deterministische Regeln verarbeitet.
+8. Konflikte, veraltete Quellen und fehlende Belege werden modellunabhängig als Findings gespeichert und beeinflussen den Freigabestatus.
+9. Nur der vom Menschen geprüfte Stand wird exportiert.
 
 ## Frontend-Modi
 
@@ -70,10 +71,10 @@ Die Auswahl erfolgt beim Build über `VITE_APP_MODE=demo|api`. Für GitHub Pages
 - **Profilabhängige Embeddings:** Offline-Hashing hält den Stack ohne Modell lauffähig; `production,ollama` ersetzt es über denselben Port durch `bge-m3`.
 - **Deterministische IAM-Regeln:** Findings sind reproduzierbar und nicht vom Sprachmodell abhängig.
 - **Lokales Ollama als Default:** keine Dokumentübertragung an einen Cloud-Provider.
-- **Synchroner MVP-Import:** Der Analyse-Lauf endet innerhalb des POST-Requests. Eine separate Status-Ressource hält den API-Vertrag für einen späteren Job-Runner stabil.
+- **Begrenzter lokaler Job-Runner:** Der POST-Request validiert und puffert Uploads, gibt eine ID zurück und übergibt die Verarbeitung an einen kleinen Thread-Pool. Status-Polling hält lange Ollama-Läufe aus dem Request-Lifecycle heraus.
 - **Keine numerische KI-Konfidenz:** Status und überprüfbare Evidenz sind erklärbarer als scheinpräzise Scores.
 
-Im `production`-Profil werden Analysen, Fragen, Review-Status, Findings und Dokumentmetadaten relational in PostgreSQL gespeichert. Retrieval-Chunks liegen nur für die Dauer einer Suchsession im pgvector-Arbeitsindex und werden danach entfernt. Das Demo-Profil verwendet absichtlich ein In-Memory-Repository.
+Im `production`-Profil werden Analysen, Fragen, Review-Status, Findings und Dokumentmetadaten relational in PostgreSQL gespeichert. Retrieval-Chunks werden einmal pro Analyse in einen isolierten pgvector-Arbeitsindex geschrieben, für alle Fragen wiederverwendet und anschließend entfernt. Das Demo-Profil verwendet absichtlich ein In-Memory-Repository.
 
 ## Laufzeitannahmen
 

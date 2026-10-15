@@ -1,6 +1,7 @@
 import { ArrowRight, Check, ChevronDown, Filter, ListFilter, Search, SlidersHorizontal } from 'lucide-react';
 import { useMemo, useState } from 'react';
 import type { Analysis, AnswerStatus, Question } from '../types';
+import { formatAnalysisDateTime } from '../format';
 import { PageIntro } from './Chrome';
 import { AnswerBadge, ReviewBadge } from './StatusBadge';
 
@@ -35,7 +36,7 @@ export function Questions({ analysis, onOpenQuestion }: { analysis: Analysis; on
       <PageIntro
         eyebrow="RFP Workspace"
         title="Frage-Queue"
-        description="24 Antworten, priorisiert nach Evidenzlage und Freigabestatus. Jede Aussage bleibt bis zur Quelle rückverfolgbar."
+        description={`${analysis.questions.length} Antworten, priorisiert nach Evidenzlage und Freigabestatus. Jede Aussage bleibt bis zur Quelle rückverfolgbar.`}
         action={<button className="button button-primary" onClick={() => onOpenQuestion(analysis.questions.find((q) => q.reviewStatus !== 'FREIGEGEBEN') ?? analysis.questions[0])}>Nächstes Review <ArrowRight size={16} /></button>}
       />
 
@@ -69,7 +70,7 @@ export function Questions({ analysis, onOpenQuestion }: { analysis: Analysis; on
           </table>
         </div>
         {questions.length === 0 && <div className="empty-filter"><ListFilter size={24} /><strong>Keine Treffer</strong><span>Probiere einen anderen Filter oder Suchbegriff.</span></div>}
-        <div className="table-footer"><span>{questions.length} von {analysis.questions.length} Fragen</span><span>Zuletzt analysiert: heute, 08:44 Uhr</span></div>
+        <div className="table-footer"><span>{questions.length} von {analysis.questions.length} Fragen</span><span>Analysiert: {formatAnalysisDateTime(analysis.createdAt)}</span></div>
       </section>
     </div>
   );

@@ -1,9 +1,7 @@
 import {
   Archive,
   BarChart3,
-  Bell,
   BookOpenText,
-  ChevronDown,
   ClipboardCheck,
   FileQuestion,
   Menu,
@@ -13,7 +11,8 @@ import {
   Sparkles,
   X,
 } from 'lucide-react';
-import type { AppView } from '../types';
+import { useEffect, useState } from 'react';
+import type { Analysis, AppView, Question } from '../types';
 
 interface NavItem {
   id: AppView;
@@ -88,11 +87,10 @@ export function Sidebar({
           <div className="security-note-icon"><Archive size={16} /></div>
           <div><strong>Local-first</strong><span>Uploads verlassen nie deine Umgebung.</span></div>
         </div>
-        <button className="profile-card">
+        <div className="profile-card" aria-label="Demo-Profil Mara König">
           <span className="avatar">MK</span>
           <span><strong>Mara König</strong><small>Solution Engineer</small></span>
-          <ChevronDown size={15} />
-        </button>
+        </div>
       </aside>
     </>
   );
@@ -120,26 +118,76 @@ export function Topbar({
       <div className="topbar-actions">
         <button className="search-trigger" onClick={onSearch}><Search size={16} /><span>Fragen durchsuchen</span><kbd>⌘ K</kbd></button>
         <span className={`mode-pill ${mode}`}><span />{mode === 'demo' ? 'Demo-Modus' : 'Live API'}</span>
-        <button className="icon-button notification-button" aria-label="Benachrichtigungen"><Bell size={18} /><span /></button>
       </div>
     </header>
   );
 }
 
-export function GlobalSearch({ open, onClose, onNavigate }: { open: boolean; onClose: () => void; onNavigate: (view: AppView) => void }) {
+export function GlobalSearch({
+  analysis,
+  open,
+  onClose,
+  onNavigate,
+  onOpenQuestion,
+}: {
+  analysis: Analysis;
+  open: boolean;
+  onClose: () => void;
+  onNavigate: (view: AppView) => void;
+  onOpenQuestion: (question: Question) => void;
+}) {
+  const [query, setQuery] = useState('');
+
+  useEffect(() => {
+    if (open) setQuery('');
+  }, [open]);
+
   if (!open) return null;
+
+  const normalizedQuery = query.trim().toLocaleLowerCase('de');
+  const navigationItems: Array<{ id: AppView; label: string; description: string; icon: typeof FileQuestion }> = [
+    { id: 'questions', label: 'Frage-Queue', description: `${analysis.questions.filter((question) => question.reviewStatus === 'OFFEN').length} Reviews offen`, icon: FileQuestion },
+    { id: 'findings', label: 'IAM Findings', description: `${analysis.findings.length} strukturierte Befunde`, icon: ShieldAlert },
+    { id: 'evidence', label: 'Evidence Library', description: `${analysis.documents.length} Quelldokumente`, icon: BookOpenText },
+    { id: 'review', label: 'Review & Export', description: `${analysis.questions.filter((question) => question.reviewStatus === 'FREIGEGEBEN').length} von ${analysis.questions.length} freigegeben`, icon: ClipboardCheck },
+  ];
+  const matchingNavigation = navigationItems.filter((item) => !normalizedQuery || `${item.label} ${item.description}`.toLocaleLowerCase('de').includes(normalizedQuery));
+  const matchingQuestions = normalizedQuery
+    ? analysis.questions.filter((question) => `${question.id} ${question.text} ${question.category}`.toLocaleLowerCase('de').includes(normalizedQuery)).slice(0, 6)
+    : [];
+  const hasResults = matchingNavigation.length > 0 || matchingQuestions.length > 0;
+
+  function navigate(target: AppView) {
+    onNavigate(target);
+    onClose();
+  }
+
+  function openQuestion(question: Question) {
+    onOpenQuestion(question);
+    onClose();
+  }
+
   return (
     <div className="modal-shell" role="dialog" aria-modal="true" aria-label="Schnellsuche">
       <button className="modal-backdrop" onClick={onClose} aria-label="Suche schließen" />
       <div className="command-palette">
         <Search size={20} />
-        <input autoFocus placeholder="Frage, Dokument oder Finding suchen …" aria-label="Suche" />
+        <input autoFocus value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Frage oder Bereich suchen …" aria-label="Suche" />
         <kbd>ESC</kbd>
         <div className="command-results">
-          <p>Schnellzugriff</p>
-          <button onClick={() => { onNavigate('questions'); onClose(); }}><FileQuestion size={17} /><span><strong>Offene Fragen prüfen</strong><small>12 Antworten warten auf Review</small></span><span>→</span></button>
-          <button onClick={() => { onNavigate('findings'); onClose(); }}><ShieldAlert size={17} /><span><strong>IAM Findings öffnen</strong><small>3 Kontrollen benötigen Aufmerksamkeit</small></span><span>→</span></button>
-          <button onClick={() => { onNavigate('evidence'); onClose(); }}><BookOpenText size={17} /><span><strong>Evidence Library</strong><small>5 verifizierte Quelldokumente</small></span><span>→</span></button>
+          <p>{normalizedQuery ? 'Suchergebnisse' : 'Schnellzugriff'}</p>
+          {matchingQuestions.map((question) => (
+            <button key={question.id} onClick={() => openQuestion(question)}>
+              <FileQuestion size={17} />
+              <span><strong>{question.id} · {question.text}</strong><small>{question.category} · {question.status}</small></span>
+              <span>→</span>
+            </button>
+          ))}
+          {matchingNavigation.map((item) => {
+            const Icon = item.icon;
+            return <button key={item.id} onClick={() => navigate(item.id)}><Icon size={17} /><span><strong>{item.label}</strong><small>{item.description}</small></span><span>→</span></button>;
+          })}
+          {!hasResults && <div className="command-empty"><FileQuestion size={19} /><span>Keine passende Frage oder Navigation gefunden.</span></div>}
         </div>
       </div>
     </div>

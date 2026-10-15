@@ -25,6 +25,9 @@ describe('ImportAnalysis', () => {
     await user.upload(inputs[1], evidence);
     await user.click(screen.getByRole('button', { name: 'Analyse starten' }));
 
-    expect(onSubmit).toHaveBeenCalledWith(expect.objectContaining({ rfp, evidence: [evidence] }));
+    expect(onSubmit).toHaveBeenCalledWith(
+      expect.objectContaining({ rfp, evidence: [evidence] }),
+      expect.any(Function),
+    );
   });
 });

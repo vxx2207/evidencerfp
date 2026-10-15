@@ -17,6 +17,7 @@ import com.certaaccess.evidencerfp.iam.IamControlEvaluator;
 import tools.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.Test;
 import org.springframework.mock.web.MockMultipartFile;
+import org.springframework.web.multipart.MultipartFile;
 
 import java.time.Clock;
 import java.time.Instant;
@@ -28,6 +29,7 @@ import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -43,8 +45,8 @@ class AnalysisServiceAnswerGeneratorTest {
         RfpQuestion question = new RfpQuestion("RFP-001", "Wird FIDO2 unterstützt?", "Identität");
         EvidenceChunk chunk = new EvidenceChunk(UUID.randomUUID(), "source.pdf", "application/pdf", "Seite 1",
                 "FIDO2 wird unterstützt.", null);
-        when(parser.parse(rfp)).thenReturn(List.of(question));
-        when(extractor.extract(evidence)).thenReturn(new ExtractedEvidence(
+        when(parser.parse(any(MultipartFile.class))).thenReturn(List.of(question));
+        when(extractor.extract(any(MultipartFile.class))).thenReturn(new ExtractedEvidence(
                 new EvidenceDocument("source.pdf", "application/pdf", 1, null, false), List.of(chunk)));
         RecordingRetriever retriever = new RecordingRetriever();
         RecordingGenerator generator = new RecordingGenerator();
@@ -53,8 +55,10 @@ class AnalysisServiceAnswerGeneratorTest {
         AnalysisService service = new AnalysisService(repository, validator, parser, extractor, retriever,
                 generator, new IamControlEvaluator(clock), new ObjectMapper(), clock);
 
-        Analysis result = service.create("Lokaler Test", rfp, List.of(evidence), null);
+        Analysis accepted = service.create("Lokaler Test", rfp, List.of(evidence), null);
+        Analysis result = service.get(accepted.id());
 
+        assertThat(accepted.status()).isEqualTo(AnalysisStatus.PROCESSING);
         assertThat(result.status()).isEqualTo(AnalysisStatus.COMPLETED);
         assertThat(result.questions()).singleElement().satisfies(answer -> {
             assertThat(answer.answer()).isEqualTo("Vom Fake-Generator belegt.");

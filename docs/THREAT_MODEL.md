@@ -1,6 +1,6 @@
 # Threat Model
 
-Stand: 13. Oktober 2026 · Gültig für den Portfolio-MVP mit ausschließlich synthetischen Daten.
+Stand: 15. Oktober 2026 · Gültig für den Portfolio-MVP mit ausschließlich synthetischen Daten.
 
 ## Schutzgüter und Vertrauensgrenzen
 
@@ -24,6 +24,7 @@ flowchart LR
 |---|---|---|---|
 | Datei tarnt sich über Endung oder MIME-Type | Parser-Angriff, unerwarteter Inhalt | Allowlist, MIME- und Magic-Byte-Abgleich, Größen- und Dateianzahllimit | Schwachstelle in Parserbibliothek |
 | ZIP-Bombe in DOCX/XLSX | Speicher-/CPU-Erschöpfung | komprimiertes Datei-/Request-Limit und Schutzmechanismen der Parserbibliotheken | Explizites Dekompressions- und Zeitbudget fehlt im MVP; DoS bleibt möglich |
+| Viele parallele Analysejobs | Arbeitsspeicher-/Worker-Erschöpfung | begrenzte Dateigröße, Worker-Anzahl und Job-Queue | In-Memory-Pufferung ist nur für lokale Einzelnutzung geeignet |
 | Pfadmanipulation über Dateinamen | Überschreiben lokaler Dateien | Servergenerierte IDs; Originalname nur als bereinigte Metadaten | Fehlerhafte Drittbibliothek |
 | Prompt Injection im Dokument | Modell folgt Dokumentanweisung | Dokument als untrusted context; Systeminstruktion; keine Tools; keine Seiteneffekte | Manipulierter Antwortentwurf |
 | Halluzinierte Zitation | Falscher Nachweis | Chunk muss aus Retrieval-Set stammen; Zitat muss im Chunk vorkommen; sonst `NOT_FOUND` | Semantisch irreführende echte Passage |

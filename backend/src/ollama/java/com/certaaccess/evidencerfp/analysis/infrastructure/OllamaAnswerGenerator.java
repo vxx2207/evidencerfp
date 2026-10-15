@@ -1,6 +1,7 @@
 package com.certaaccess.evidencerfp.analysis.infrastructure;
 
 import com.certaaccess.evidencerfp.analysis.application.AnswerGenerator;
+import com.certaaccess.evidencerfp.analysis.application.EvidenceAnswerPolicy;
 import com.certaaccess.evidencerfp.analysis.domain.AnswerStatus;
 import com.certaaccess.evidencerfp.analysis.domain.Citation;
 import com.certaaccess.evidencerfp.analysis.domain.Finding;
@@ -42,12 +43,14 @@ public class OllamaAnswerGenerator implements AnswerGenerator {
     private final ChatClient chatClient;
     private final ObjectMapper objectMapper;
     private final CitationVerifier citationVerifier;
+    private final EvidenceAnswerPolicy evidenceAnswerPolicy;
 
     public OllamaAnswerGenerator(ChatClient.Builder builder, ObjectMapper objectMapper,
-                                 CitationVerifier citationVerifier) {
+                                 CitationVerifier citationVerifier, EvidenceAnswerPolicy evidenceAnswerPolicy) {
         this.chatClient = builder.build();
         this.objectMapper = objectMapper;
         this.citationVerifier = citationVerifier;
+        this.evidenceAnswerPolicy = evidenceAnswerPolicy;
     }
 
     @Override
@@ -69,14 +72,18 @@ public class OllamaAnswerGenerator implements AnswerGenerator {
             }
             Map<UUID, EvidenceChunk> byId = retrievedChunks.stream()
                     .collect(Collectors.toMap(EvidenceChunk::id, Function.identity()));
-            List<Citation> citations = model.citations() == null ? List.of() : model.citations().stream()
+            List<ModelCitation> modelCitations = model.citations() == null ? List.of() : model.citations();
+            List<Citation> citations = modelCitations.stream()
                     .map(item -> toCitation(item, byId)).filter(java.util.Objects::nonNull).toList();
             if (model.answer() == null || model.answer().isBlank()
+                    || citations.size() != modelCitations.size()
                     || !citationVerifier.verify(citations, retrievedChunks)) {
                 return rejected(question, "Die Modellantwort wurde verworfen, weil ihre Zitation nicht verifizierbar war.");
             }
-            return new QuestionResult(question.id(), question.question(), question.category(), model.answer(), status,
-                    ReviewStatus.DRAFT, citations, model.internalClarification(), List.of());
+            QuestionResult draft = new QuestionResult(question.id(), question.question(), question.category(),
+                    model.answer(), status, ReviewStatus.DRAFT, citations,
+                    model.internalClarification(), List.of());
+            return evidenceAnswerPolicy.enforce(question, draft, retrievedChunks);
         } catch (RuntimeException exception) {
             return rejected(question, "Die Modellantwort war nicht als belegbares JSON auswertbar.");
         }

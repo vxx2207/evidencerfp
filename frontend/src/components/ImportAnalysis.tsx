@@ -1,6 +1,6 @@
 import { FileJson2, FileSpreadsheet, FileText, LoaderCircle, LockKeyhole, Upload, X } from 'lucide-react';
 import { useState } from 'react';
-import type { AnalysisInput } from '../types';
+import type { AnalysisInput, AnalysisProgress } from '../types';
 
 export function ImportAnalysis({
   open,
@@ -9,7 +9,7 @@ export function ImportAnalysis({
 }: {
   open: boolean;
   onClose: () => void;
-  onSubmit: (input: AnalysisInput) => Promise<void>;
+  onSubmit: (input: AnalysisInput, onProgress: (progress: AnalysisProgress) => void) => Promise<void>;
 }) {
   const [customerName, setCustomerName] = useState('Nordstern Bank (synthetisch)');
   const [rfp, setRfp] = useState<File | null>(null);
@@ -17,6 +17,7 @@ export function ImportAnalysis({
   const [iamSnapshot, setIamSnapshot] = useState<File | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [progress, setProgress] = useState<AnalysisProgress | null>(null);
 
   if (!open) return null;
 
@@ -28,8 +29,12 @@ export function ImportAnalysis({
     }
     setSubmitting(true);
     setError(null);
+    setProgress({ status: 'PROCESSING', percent: 5, phase: 'Upload wird validiert' });
     try {
-      await onSubmit({ customerName: customerName.trim() || 'Lokale Analyse', rfp, evidence, iamSnapshot: iamSnapshot ?? undefined });
+      await onSubmit(
+        { customerName: customerName.trim() || 'Lokale Analyse', rfp, evidence, iamSnapshot: iamSnapshot ?? undefined },
+        setProgress,
+      );
       setRfp(null);
       setEvidence([]);
       setIamSnapshot(null);
@@ -67,8 +72,15 @@ export function ImportAnalysis({
         </div>
 
         <div className="import-trust"><LockKeyhole size={17} /><span><strong>Untrusted by design.</strong> Dateityp, MIME-Type, Magic Bytes und Größe werden vor dem Parsen serverseitig geprüft.</span></div>
+        {submitting && progress && (
+          <div className="analysis-progress" role="status" aria-live="polite">
+            <div><span>{progress.phase}</span><strong>{progress.percent}%</strong></div>
+            <progress max="100" value={progress.percent}>{progress.percent}%</progress>
+            <small>Die Analyse läuft als lokaler Hintergrundjob. Dieses Fenster bitte geöffnet lassen.</small>
+          </div>
+        )}
         {error && <div className="import-error" role="alert">{error}</div>}
-        <div className="import-actions"><button type="button" className="button button-ghost" onClick={onClose}>Abbrechen</button><button className="button button-primary" disabled={submitting}>{submitting ? <LoaderCircle className="spin" size={16} /> : <Upload size={16} />}{submitting ? 'Analyse läuft …' : 'Analyse starten'}</button></div>
+        <div className="import-actions"><button type="button" className="button button-ghost" onClick={onClose} disabled={submitting}>Abbrechen</button><button className="button button-primary" disabled={submitting}>{submitting ? <LoaderCircle className="spin" size={16} /> : <Upload size={16} />}{submitting ? 'Analyse läuft …' : 'Analyse starten'}</button></div>
       </form>
     </div>
   );

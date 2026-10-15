@@ -11,6 +11,7 @@ import {
   XCircle,
 } from 'lucide-react';
 import type { Analysis, AppView, Capabilities, Question } from '../types';
+import { evidencePackFilename } from '../format';
 import { PageIntro } from './Chrome';
 import { AnswerBadge } from './StatusBadge';
 
@@ -46,7 +47,7 @@ export function ReviewExport({
         </div>
         <div className="export-card">
           <div className="export-file-icon"><FileSpreadsheet size={26} /></div>
-          <div><strong>Nordstern_Evidence_Pack.{capabilities.mode === 'api' ? 'xlsx' : 'csv'}</strong><span>{analysis.questions.length} Antworten · {analysis.documents.length} Quellen · {analysis.findings.length} Findings</span></div>
+          <div><strong>{evidencePackFilename(analysis.customer, capabilities.mode === 'api' ? 'xlsx' : 'csv')}</strong><span>{analysis.questions.length} Antworten · {analysis.documents.length} Quellen · {analysis.findings.length} Findings</span></div>
           <button className="button button-primary" onClick={onExport} disabled={exporting}>{exporting ? 'Wird erstellt …' : <><Download size={16} /> {capabilities.mode === 'api' ? 'XLSX exportieren' : 'Demo-CSV exportieren'}</>}</button>
           <small><LockKeyhole size={12} /> Blockierte Antworten werden als „Klärung erforderlich“ markiert.</small>
         </div>

@@ -1,9 +1,11 @@
 package com.certaaccess.evidencerfp.analysis.api;
 
 import com.certaaccess.evidencerfp.analysis.application.AnalysisExporter;
+import com.certaaccess.evidencerfp.analysis.application.AnalysisCapacityExceededException;
 import com.certaaccess.evidencerfp.analysis.application.AnalysisService;
 import com.certaaccess.evidencerfp.analysis.application.DemoAnalysisFactory;
 import com.certaaccess.evidencerfp.analysis.domain.Analysis;
+import com.certaaccess.evidencerfp.analysis.domain.ApprovalBlockedException;
 import com.certaaccess.evidencerfp.evidence.UploadValidationProperties;
 import com.certaaccess.evidencerfp.iam.IamControlEvaluator;
 import org.junit.jupiter.api.BeforeEach;
@@ -79,9 +81,23 @@ class AnalysisControllerTest {
     }
 
     @Test
+    void reportsABusyLocalAnalysisQueueAsServiceUnavailable() throws Exception {
+        when(service.create(isNull(), any(), anyList(), isNull()))
+                .thenThrow(new AnalysisCapacityExceededException());
+        MockMultipartFile rfp = new MockMultipartFile("rfp", "rfp.xlsx",
+                "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", new byte[]{1});
+        MockMultipartFile evidence = new MockMultipartFile("evidence", "beleg.pdf",
+                "application/pdf", new byte[]{2});
+
+        mvc.perform(multipart("/api/v1/analyses").file(rfp).file(evidence))
+                .andExpect(status().isServiceUnavailable())
+                .andExpect(jsonPath("$.code").value("ANALYSIS_CAPACITY_EXCEEDED"));
+    }
+
+    @Test
     void blocksApprovalWhenEvidenceIsMissing() throws Exception {
         when(service.updateQuestion(any(), any(), any(), any())).thenThrow(
-                new IllegalStateException("Die Frage kann wegen blockierender Findings nicht freigegeben werden."));
+                new ApprovalBlockedException("Die Frage kann wegen blockierender Findings nicht freigegeben werden."));
 
         mvc.perform(patch("/api/v1/analyses/{id}/questions/{questionId}",
                         DemoAnalysisFactory.DEMO_ID, "RFP-018")
@@ -89,6 +105,21 @@ class AnalysisControllerTest {
                         .content("{\"reviewStatus\":\"APPROVED\"}"))
                 .andExpect(status().isConflict())
                 .andExpect(jsonPath("$.code").value("APPROVAL_BLOCKED"));
+    }
+
+    @Test
+    void doesNotMisclassifyUnexpectedIllegalStateAsApprovalConflict() throws Exception {
+        when(service.updateQuestion(any(), any(), any(), any())).thenThrow(
+                new IllegalStateException("interne technische Ursache"));
+
+        mvc.perform(patch("/api/v1/analyses/{id}/questions/{questionId}",
+                        DemoAnalysisFactory.DEMO_ID, "RFP-001")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"reviewStatus\":\"APPROVED\"}"))
+                .andExpect(status().isInternalServerError())
+                .andExpect(jsonPath("$.code").value("INTERNAL_ERROR"))
+                .andExpect(jsonPath("$.detail").value(
+                        "Die Anfrage konnte wegen eines internen Fehlers nicht verarbeitet werden."));
     }
 
     @Test

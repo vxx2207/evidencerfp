@@ -71,6 +71,14 @@ jobs:
           VITE_APP_MODE: demo
         run: npm run build
 
+      - name: Chromium für den Smoke-Test installieren
+        run: npx playwright install --with-deps chromium
+
+      - name: Gebautes Demo-Artefakt im Browser prüfen
+        env:
+          PLAYWRIGHT_USE_PREVIEW: "true"
+        run: npm run test:e2e
+
   repository-contract:
     name: Demo-Daten und Compose prüfen
     runs-on: ubuntu-latest

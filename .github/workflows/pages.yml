@@ -50,6 +50,16 @@ jobs:
           VITE_API_BASE_URL: ""
         run: npm run build
 
+      - name: Chromium für den Smoke-Test installieren
+        working-directory: frontend
+        run: npx playwright install --with-deps chromium
+
+      - name: Gebautes Pages-Artefakt im Browser prüfen
+        working-directory: frontend
+        env:
+          PLAYWRIGHT_USE_PREVIEW: "true"
+        run: npm run test:e2e
+
       - name: Pages-Artefakt hochladen
         uses: actions/upload-pages-artifact@v3
         with:

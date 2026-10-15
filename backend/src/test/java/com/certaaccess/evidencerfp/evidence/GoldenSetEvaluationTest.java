@@ -1,6 +1,7 @@
 package com.certaaccess.evidencerfp.evidence;
 
 import com.certaaccess.evidencerfp.analysis.application.DeterministicAnswerEngine;
+import com.certaaccess.evidencerfp.analysis.application.EvidenceAnswerPolicy;
 import com.certaaccess.evidencerfp.analysis.domain.AnswerStatus;
 import org.junit.jupiter.api.Test;
 import tools.jackson.databind.ObjectMapper;
@@ -61,7 +62,8 @@ class GoldenSetEvaluationTest {
         List<EvidenceChunk> chunks = markdownChunks(examples.resolve("source"));
         LexicalEvidenceRetriever retriever = new LexicalEvidenceRetriever();
         DeterministicAnswerEngine answerEngine = new DeterministicAnswerEngine(
-                new CitationVerifier(), Clock.fixed(Instant.parse("2026-10-14T00:00:00Z"), ZoneOffset.UTC));
+                new CitationVerifier(), new EvidenceAnswerPolicy(
+                        Clock.fixed(Instant.parse("2026-10-14T00:00:00Z"), ZoneOffset.UTC), 365));
 
         for (GoldenQuestion question : goldenSet.questions()) {
             if (question.answerable()) continue;

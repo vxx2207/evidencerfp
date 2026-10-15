@@ -6,7 +6,9 @@ import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.sql.Date;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 
 /**
@@ -25,9 +27,22 @@ public class PgVectorEvidenceRetriever implements EvidenceRetriever {
     }
 
     @Override
-    @Transactional
     public List<EvidenceChunk> retrieve(RfpQuestion question, List<EvidenceChunk> availableChunks, int limit) {
-        if (availableChunks.isEmpty()) return List.of();
+        return retrieveBatch(List.of(question), availableChunks, limit)
+                .getOrDefault(question.id(), List.of());
+    }
+
+    @Override
+    @Transactional
+    public Map<String, List<EvidenceChunk>> retrieveBatch(List<RfpQuestion> questions,
+                                                          List<EvidenceChunk> availableChunks,
+                                                          int limit) {
+        Map<String, List<EvidenceChunk>> results = new LinkedHashMap<>();
+        if (questions.isEmpty()) return results;
+        if (availableChunks.isEmpty()) {
+            questions.forEach(question -> results.put(question.id(), List.of()));
+            return results;
+        }
         UUID sessionId = UUID.randomUUID();
         try {
             jdbc.sql("DELETE FROM evidence_retrieval_chunk WHERE expires_at < now()").update();
@@ -48,22 +63,26 @@ public class PgVectorEvidenceRetriever implements EvidenceRetriever {
                         .param("embedding", vectorLiteral(embeddingProvider.embed(chunk.content())))
                         .update();
             }
-            return jdbc.sql("""
-                    SELECT chunk_id, document_name, media_type, locator, content, document_date
-                    FROM evidence_retrieval_chunk
-                    WHERE session_id = :sessionId
-                    ORDER BY embedding <=> CAST(:queryEmbedding AS vector)
-                    LIMIT :resultLimit
-                    """)
-                    .param("sessionId", sessionId)
-                    .param("queryEmbedding", vectorLiteral(embeddingProvider.embed(question.question())))
-                    .param("resultLimit", Math.max(1, limit))
-                    .query((row, rowNumber) -> new EvidenceChunk(
-                            row.getObject("chunk_id", UUID.class),
-                            row.getString("document_name"), row.getString("media_type"),
-                            row.getString("locator"), row.getString("content"),
-                            row.getObject("document_date", java.time.LocalDate.class)))
-                    .list();
+            for (RfpQuestion question : questions) {
+                List<EvidenceChunk> matches = jdbc.sql("""
+                        SELECT chunk_id, document_name, media_type, locator, content, document_date
+                        FROM evidence_retrieval_chunk
+                        WHERE session_id = :sessionId
+                        ORDER BY embedding <=> CAST(:queryEmbedding AS vector)
+                        LIMIT :resultLimit
+                        """)
+                        .param("sessionId", sessionId)
+                        .param("queryEmbedding", vectorLiteral(embeddingProvider.embed(question.question())))
+                        .param("resultLimit", Math.max(1, limit))
+                        .query((row, rowNumber) -> new EvidenceChunk(
+                                row.getObject("chunk_id", UUID.class),
+                                row.getString("document_name"), row.getString("media_type"),
+                                row.getString("locator"), row.getString("content"),
+                                row.getObject("document_date", java.time.LocalDate.class)))
+                        .list();
+                results.put(question.id(), matches);
+            }
+            return results;
         } finally {
             jdbc.sql("DELETE FROM evidence_retrieval_chunk WHERE session_id = :sessionId")
                     .param("sessionId", sessionId).update();

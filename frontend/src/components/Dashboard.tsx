@@ -13,20 +13,26 @@ import {
   Sparkles,
   TriangleAlert,
   Upload,
+  Play,
+  RotateCcw,
+  TrendingUp,
 } from 'lucide-react';
 import type { Analysis, AppView, Question } from '../types';
+import { isReviewDecided, isReviewOpen } from '../review';
 import { AnswerBadge } from './StatusBadge';
 
 function formatDate(value: string) {
   return new Intl.DateTimeFormat('de-DE', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' }).format(new Date(value));
 }
 
-export function Dashboard({ analysis, onNavigate, onOpenQuestion, onImport }: { analysis: Analysis; onNavigate: (view: AppView) => void; onOpenQuestion: (question: Question) => void; onImport?: () => void }) {
+export function Dashboard({ analysis, onNavigate, onOpenQuestion, onImport, onStartTour, onResetDemo }: { analysis: Analysis; onNavigate: (view: AppView) => void; onOpenQuestion: (question: Question) => void; onImport?: () => void; onStartTour?: () => void; onResetDemo?: () => void }) {
   const counts = {
     supported: analysis.questions.filter((q) => q.status === 'SUPPORTED').length,
     partial: analysis.questions.filter((q) => q.status === 'PARTIAL').length,
     missing: analysis.questions.filter((q) => q.status === 'NOT_FOUND').length,
     approved: analysis.questions.filter((q) => q.reviewStatus === 'FREIGEGEBEN').length,
+    blocked: analysis.questions.filter((q) => q.reviewStatus === 'BLOCKIERT').length,
+    decided: analysis.questions.filter((q) => isReviewDecided(q.reviewStatus)).length,
   };
   const severityCounts = {
     critical: analysis.findings.filter((finding) => finding.severity === 'KRITISCH').length,
@@ -34,9 +40,10 @@ export function Dashboard({ analysis, onNavigate, onOpenQuestion, onImport }: { 
     medium: analysis.findings.filter((finding) => finding.severity === 'MITTEL').length,
   };
   const totalSections = analysis.documents.reduce((sum, document) => sum + document.sections.length, 0);
-  const openDecisions = analysis.questions.filter((question) => question.reviewStatus === 'OFFEN').length;
+  const openDecisions = analysis.questions.filter((question) => isReviewOpen(question.reviewStatus)).length;
   const sourceCoverage = Math.round(((counts.supported + counts.partial) / analysis.questions.length) * 100);
-  const priorityQuestions = analysis.questions.filter((q) => q.reviewStatus === 'BLOCKIERT' || q.status === 'PARTIAL').slice(0, 4);
+  const priorityQuestions = analysis.questions.filter((question) => isReviewOpen(question.reviewStatus)).slice(0, 4);
+  const nextOpenQuestion = priorityQuestions[0];
 
   return (
     <div className="page dashboard-page">
@@ -46,9 +53,11 @@ export function Dashboard({ analysis, onNavigate, onOpenQuestion, onImport }: { 
           <h1>Von {analysis.questions.length} Fragen zu<br /><em>belastbaren Antworten.</em></h1>
           <p>EvidenceRFP verknüpft jede Aussage mit prüfbarer Evidenz und deckt Identitätsrisiken auf – bevor dein Angebot den Kunden erreicht.</p>
           <div className="hero-actions">
-            <button className="button button-primary" onClick={() => onNavigate('workbench')}>Review starten <ArrowRight size={17} /></button>
+            {onStartTour && <button className="button button-tour" onClick={onStartTour}><Play size={16} fill="currentColor" /> 60-Sekunden-Demo starten</button>}
+            <button className="button button-ghost" onClick={() => nextOpenQuestion ? onOpenQuestion(nextOpenQuestion) : onNavigate('review')}>{nextOpenQuestion ? 'Review fortsetzen' : 'Zum Export'} <ArrowRight size={17} /></button>
             <button className="button button-ghost" onClick={() => onNavigate('evidence')}><BookOpenCheck size={17} /> Quellen ansehen</button>
             {onImport && <button className="button button-ghost" onClick={onImport}><Upload size={17} /> Neue Analyse</button>}
+            {onResetDemo && <button className="button button-reset-demo" onClick={onResetDemo}><RotateCcw size={15} /> Demo zurücksetzen</button>}
           </div>
         </div>
         <div className="hero-score">
@@ -88,6 +97,22 @@ export function Dashboard({ analysis, onNavigate, onOpenQuestion, onImport }: { 
         </article>
       </section>
 
+      <details className="panel business-impact-panel">
+        <summary>
+          <span className="business-impact-heading"><span className="insight-icon"><TrendingUp size={18} /></span><span><span className="eyebrow">Synthetischer ROI-Case</span><strong>Business Impact als transparente Beispielannahme</strong></span></span>
+          <span className="business-impact-metrics">
+            <span><strong>35 h</strong><small>pro Monat</small></span>
+            <span><strong>~ 7</strong><small>Monate Amortisation</small></span>
+            <span><strong>38,2 %</strong><small>Beispiel-ROI im 1. Jahr</small></span>
+          </span>
+          <span className="business-impact-more">Annahmen anzeigen <ArrowRight size={14} /></span>
+        </summary>
+        <div className="business-impact-details">
+          <p><strong>Reines Rechenbeispiel – kein Kundenergebnis:</strong> 35 eingesparte Stunden pro Monat × 75 € interner Stundensatz = 2.625 € pro Monat beziehungsweise 31.500 € Bruttonutzen pro Jahr.</p>
+          <p>12.000 € Einführung plus 900 € Betrieb pro Monat ergeben 22.800 € Kosten im ersten Jahr. Bei 1.725 € Monatsnetto liegt die Amortisation bei 6,96 Monaten; der Beispiel-ROI beträgt <strong>(31.500 € − 22.800 €) ÷ 22.800 € = 38,2 %</strong>.</p>
+        </div>
+      </details>
+
       <section className="dashboard-grid">
         <article className="panel priority-panel">
           <div className="panel-heading">
@@ -104,6 +129,7 @@ export function Dashboard({ analysis, onNavigate, onOpenQuestion, onImport }: { 
                 <ArrowRight size={16} className="row-arrow" />
               </button>
             ))}
+            {priorityQuestions.length === 0 && <div className="priority-empty"><CheckCircle2 size={19} /><span><strong>Alle Antworten sind entschieden.</strong><small>{counts.approved} freigegeben · {counts.blocked} als Klärung blockiert</small></span></div>}
           </div>
         </article>
 
@@ -117,7 +143,7 @@ export function Dashboard({ analysis, onNavigate, onOpenQuestion, onImport }: { 
             <div className="pipeline-step done"><span><BookOpenCheck size={17} /></span><div><strong>Indexierung</strong><small>{totalSections} Passagen</small></div><i /></div>
             <div className="pipeline-step done"><span><LockKeyhole size={17} /></span><div><strong>IAM Scan</strong><small>{analysis.findings.length} Findings</small></div><i /></div>
             <div className="pipeline-step done"><span><Sparkles size={17} /></span><div><strong>Synthese</strong><small>{analysis.questions.length} Entwürfe</small></div><i /></div>
-            <div className="pipeline-step current"><span><Gauge size={17} /></span><div><strong>Review</strong><small>{counts.approved} freigegeben</small></div></div>
+            <div className={`pipeline-step ${openDecisions === 0 ? 'done' : 'current'}`}><span><Gauge size={17} /></span><div><strong>Review</strong><small>{counts.decided} entschieden</small></div></div>
           </div>
         </article>
 
@@ -130,9 +156,9 @@ export function Dashboard({ analysis, onNavigate, onOpenQuestion, onImport }: { 
         </article>
 
         <article className="panel readiness-panel">
-          <div className="readiness-top"><span className="eyebrow">Submission Readiness</span><span>{counts.approved}/{analysis.questions.length}</span></div>
-          <div className="readiness-track"><i style={{ width: `${Math.round((counts.approved / analysis.questions.length) * 100)}%` }} /></div>
-          <div className="readiness-copy"><TriangleAlert size={16} /><span><strong>{openDecisions} Entscheidungen offen.</strong> Blockierte Antworten werden als Klärung gekennzeichnet.</span></div>
+          <div className="readiness-top"><span className="eyebrow">Submission Readiness</span><span>{counts.decided}/{analysis.questions.length}</span></div>
+          <div className="readiness-track"><i style={{ width: `${Math.round((counts.decided / analysis.questions.length) * 100)}%` }} /></div>
+          <div className="readiness-copy">{openDecisions > 0 ? <TriangleAlert size={16} /> : <CheckCircle2 size={16} />}<span><strong>{openDecisions > 0 ? `${openDecisions} Entscheidungen offen.` : 'Alle Antworten entschieden.'}</strong> Blockierte Antworten werden als Klärung gekennzeichnet.</span></div>
           <button className="button button-dark" onClick={() => onNavigate('review')}>Zum Review <ArrowRight size={16} /></button>
         </article>
       </section>

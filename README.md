@@ -1,5 +1,12 @@
 # EvidenceRFP
 
+![Release](https://img.shields.io/badge/release-v0.1.0-0f766e)
+![CI](https://img.shields.io/badge/CI-GitHub_Actions_ready-2088ff)
+![GitHub Pages](https://img.shields.io/badge/demo-GitHub_Pages_ready-222222)
+![License](https://img.shields.io/badge/license-MIT-2f855a)
+
+![EvidenceRFP – Belegbare Security-Antworten](docs/assets/social-preview.png)
+
 > **Portfolio-Demo · vollständig synthetische Daten**
 >
 > EvidenceRFP ist kein Produkt der fiktiven Unternehmen CertaAccess oder Nordstern Bank. Die öffentliche Demo verarbeitet keine Uploads und keine echten Kundendaten.
@@ -7,6 +14,12 @@
 **Vom Security-Fragebogen zur belegbaren Antwort – inklusive IAM-Kontrollnachweisen.**
 
 EvidenceRFP unterstützt Technical-Sales-Teams dabei, wiederkehrende Security-Fragebögen schneller und belastbarer zu beantworten. Die Anwendung findet passende Aussagen in freigegebenen Produktunterlagen, zeigt die exakte Fundstelle, markiert Widersprüche und ergänzt dokumentbasierte Antworten um deterministische Identity-Security-Prüfungen.
+
+> **Schnelleinstieg:** Die Anwendung besitzt eine geführte **60-Sekunden-Demo**. Lokal starten, auf „60-Sekunden-Demo starten“ klicken und nacheinander verifizierte Quelle, Quellenkonflikt, bewusstes Nichtwissen, IAM-Finding und Evidence Pack erleben. Der GitHub-Pages-Workflow ist vorbereitet; der öffentliche Link wird nach dem ersten Push des noch nicht verbundenen Repositories ergänzt.
+
+| 24 synthetische Fragen | 94,1 % Recall@6 | 100 % technisch validierte Zitationen | 3 deterministische IAM-Regeln |
+|---:|---:|---:|---:|
+| nachvollziehbarer Demo-Datensatz | 16/17 beantwortbare Golden-Set-Fragen | Chunk und Zitat serverseitig geprüft | ohne LLM-Entscheidung |
 
 ![EvidenceRFP Answer Workbench mit geöffneter, exakt markierter Quellenpassage](docs/assets/evidence-review.png)
 
@@ -33,7 +46,7 @@ Identity Security verbindet technische Tiefe mit einem klaren Presales-Prozess: 
 2. **Analyse:** Fünf synthetische CertaAccess-Dokumente werden durchsucht; ein IAM-Snapshot durchläuft drei reproduzierbare Kontrollen.
 3. **Review:** Eine belegte Antwort öffnet die genaue Quellpassage. Ein Widerspruch wird nebeneinander angezeigt. Eine unbeantwortbare Frage erzeugt eine interne Klärungsfrage.
 4. **Entscheidung:** Der Sales Engineer korrigiert und genehmigt Antworten. Konflikte bleiben bis zur Klärung gesperrt.
-5. **Übergabe:** Der geprüfte Stand wird als Excel Evidence Pack exportiert.
+5. **Übergabe:** Der geprüfte Stand wird in beiden Modi als Excel Evidence Pack mit Antworten, Findings, Quellen und Reviewstatus exportiert.
 
 Der vollständige Moderationstext steht im [Demo Talk Track](docs/DEMO_TALK_TRACK.md).
 
@@ -47,6 +60,8 @@ Der vollständige Moderationstext steht im [Demo Talk Track](docs/DEMO_TALK_TRAC
 - Deterministische Kontrollen für privilegierte Konten, verwaiste Konten und alte Service-Account-Zugangsdaten
 - Bearbeitungs- und Freigabe-Workflow mit sicherem XLSX-Export
 - Zwei Frontend-Modi mit demselben Datenmodell: statische Demo-Fixtures oder lokale API
+- geführte, per Hash-Link teilbare 60-Sekunden-Tour und reproduzierbarer Demo-Reset
+- echtes XLSX Evidence Pack auch in der statischen Browser-Demo
 - Geführter lokaler Importdialog für XLSX, mehrere PDF/DOCX-Dateien und einen optionalen IAM-Snapshot
 
 ## Architektur
@@ -104,6 +119,8 @@ Unter PowerShell lautet die letzte Zeile:
 $env:VITE_APP_MODE = "demo"
 npm run dev
 ```
+
+Danach entweder auf **60-Sekunden-Demo starten** klicken oder direkt eine Station öffnen, zum Beispiel `http://localhost:5173/#tour/source`, `#tour/conflict`, `#tour/not-found`, `#tour/finding` oder `#tour/export`.
 
 ## Quickstart: vollständiger lokaler Stack
 
@@ -173,7 +190,7 @@ In diesem Modus verlassen Dokumentpassagen die lokale Umgebung. Für reale Kunde
 | `GET` | `/api/v1/capabilities` | Laufzeitfähigkeiten und aktivierter KI-Provider |
 | `POST` | `/api/v1/analyses` | RFP, Evidenzdateien und optionalen IAM-Snapshot einreichen |
 | `GET` | `/api/v1/analyses/{id}` | Fortschritt und Verarbeitungsstatus abrufen |
-| `GET` | `/api/v1/analyses/{id}/result` | Fragen, Antworten, Zitationen und Findings laden |
+| `GET` | `/api/v1/analyses/{id}/result` | Fragen, Antworten, vollständige Quellenpassagen, Findings und Reviewereignisse laden |
 | `PATCH` | `/api/v1/analyses/{id}/questions/{questionId}` | Antwort bearbeiten oder freigeben |
 | `GET` | `/api/v1/analyses/{id}/export.xlsx` | Geprüftes Evidence Pack exportieren |
 | `DELETE` | `/api/v1/analyses/{id}` | Analyse und zugehörige lokale Daten löschen |
@@ -189,7 +206,9 @@ Der Import ist als lokaler Hintergrundjob umgesetzt: `POST /analyses` validiert 
 - [PoC Success Plan](docs/POC_SUCCESS_PLAN.md)
 - [Einwandbehandlung](docs/OBJECTION_HANDLING.md)
 - [Security und Grenzen](docs/SECURITY_LIMITATIONS.md)
+- [90-Sekunden-Storyboard und Aufnahmeplan](docs/DEMO_90_SECONDS.md)
 - [Demo Talk Track](docs/DEMO_TALK_TRACK.md)
+- [Release-Checkliste](docs/RELEASE_CHECKLIST.md)
 - [Beispieldaten und erwartete Ergebnisse](examples/README.md)
 
 ## Qualitätsziele

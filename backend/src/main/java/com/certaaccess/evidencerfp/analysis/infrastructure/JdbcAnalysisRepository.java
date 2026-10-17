@@ -7,11 +7,16 @@ import com.certaaccess.evidencerfp.analysis.domain.AnalysisStatus;
 import com.certaaccess.evidencerfp.analysis.domain.AnswerStatus;
 import com.certaaccess.evidencerfp.analysis.domain.Citation;
 import com.certaaccess.evidencerfp.analysis.domain.EvidenceDocument;
+import com.certaaccess.evidencerfp.analysis.domain.EvidencePassage;
 import com.certaaccess.evidencerfp.analysis.domain.Finding;
 import com.certaaccess.evidencerfp.analysis.domain.FindingSeverity;
 import com.certaaccess.evidencerfp.analysis.domain.FindingType;
 import com.certaaccess.evidencerfp.analysis.domain.QuestionResult;
 import com.certaaccess.evidencerfp.analysis.domain.ReviewStatus;
+import com.certaaccess.evidencerfp.analysis.domain.ReviewAction;
+import com.certaaccess.evidencerfp.analysis.domain.ReviewActor;
+import com.certaaccess.evidencerfp.analysis.domain.ReviewEvent;
+import com.certaaccess.evidencerfp.analysis.domain.ReviewProvenance;
 import jakarta.annotation.PostConstruct;
 import org.springframework.context.annotation.Profile;
 import org.springframework.jdbc.core.simple.JdbcClient;
@@ -99,19 +104,35 @@ public class JdbcAnalysisRepository implements AnalysisRepository {
         jdbc.sql("DELETE FROM analysis_document WHERE analysis_id = :id").param("id", analysis.id()).update();
         int documentPosition = 0;
         for (EvidenceDocument document : analysis.evidenceDocuments()) {
+            int currentDocumentPosition = documentPosition++;
             jdbc.sql("""
                     INSERT INTO analysis_document
                       (analysis_id, position, name, media_type, chunk_count, document_date, stale)
                     VALUES (:analysisId, :position, :name, :mediaType, :chunkCount, :documentDate, :stale)
                     """)
                     .param("analysisId", analysis.id())
-                    .param("position", documentPosition++)
+                    .param("position", currentDocumentPosition)
                     .param("name", document.name())
                     .param("mediaType", document.mediaType())
                     .param("chunkCount", document.chunkCount())
                     .param("documentDate", document.documentDate() == null ? null : Date.valueOf(document.documentDate()))
                     .param("stale", document.stale())
                     .update();
+            int passagePosition = 0;
+            for (EvidencePassage passage : document.passages()) {
+                jdbc.sql("""
+                        INSERT INTO analysis_evidence_passage
+                          (analysis_id, document_position, position, chunk_id, locator, content)
+                        VALUES (:analysisId, :documentPosition, :position, :chunkId, :locator, :content)
+                        """)
+                        .param("analysisId", analysis.id())
+                        .param("documentPosition", currentDocumentPosition)
+                        .param("position", passagePosition++)
+                        .param("chunkId", passage.chunkId())
+                        .param("locator", passage.locator())
+                        .param("content", passage.content())
+                        .update();
+            }
         }
 
         jdbc.sql("DELETE FROM finding WHERE analysis_id = :id").param("id", analysis.id()).update();
@@ -137,6 +158,30 @@ public class JdbcAnalysisRepository implements AnalysisRepository {
                     .param("blocksApproval", finding.blocksApproval())
                     .update();
         }
+
+        for (ReviewEvent event : analysis.reviewEvents()) {
+            jdbc.sql("""
+                    INSERT INTO analysis_review_event
+                      (id, analysis_id, question_id, actor, action, provenance, occurred_at,
+                       before_answer, after_answer, before_review_status, after_review_status)
+                    VALUES (:id, :analysisId, :questionId, :actor, :action, :provenance, :occurredAt,
+                            :beforeAnswer, :afterAnswer, :beforeReviewStatus, :afterReviewStatus)
+                    ON CONFLICT (id) DO NOTHING
+                    """)
+                    .param("id", event.id())
+                    .param("analysisId", analysis.id())
+                    .param("questionId", event.questionId())
+                    .param("actor", event.actor().name())
+                    .param("action", event.action().name())
+                    .param("provenance", event.provenance().name())
+                    .param("occurredAt", Timestamp.from(event.occurredAt()))
+                    .param("beforeAnswer", event.beforeAnswer())
+                    .param("afterAnswer", event.afterAnswer())
+                    .param("beforeReviewStatus", event.beforeReviewStatus() == null
+                            ? null : event.beforeReviewStatus().name())
+                    .param("afterReviewStatus", event.afterReviewStatus().name())
+                    .update();
+        }
         return analysis;
     }
 
@@ -152,7 +197,7 @@ public class JdbcAnalysisRepository implements AnalysisRepository {
                         row.getBoolean("synthetic"), AnalysisStatus.valueOf(row.getString("status")),
                         row.getTimestamp("created_at").toInstant(),
                         row.getTimestamp("completed_at") == null ? null : row.getTimestamp("completed_at").toInstant(),
-                        loadQuestions(id), loadFindings(id), loadDocuments(id)))
+                        loadQuestions(id), loadFindings(id), loadDocuments(id), loadReviewEvents(id)))
                 .optional();
     }
 
@@ -195,13 +240,51 @@ public class JdbcAnalysisRepository implements AnalysisRepository {
 
     private List<EvidenceDocument> loadDocuments(UUID analysisId) {
         return jdbc.sql("""
-                SELECT name, media_type, chunk_count, document_date, stale
+                SELECT position, name, media_type, chunk_count, document_date, stale
                 FROM analysis_document WHERE analysis_id = :analysisId ORDER BY position
                 """)
                 .param("analysisId", analysisId)
                 .query((row, rowNumber) -> new EvidenceDocument(
                         row.getString("name"), row.getString("media_type"), row.getInt("chunk_count"),
-                        row.getObject("document_date", LocalDate.class), row.getBoolean("stale")))
+                        row.getObject("document_date", LocalDate.class), row.getBoolean("stale"),
+                        loadPassages(analysisId, row.getInt("position"))))
+                .list();
+    }
+
+    private List<EvidencePassage> loadPassages(UUID analysisId, int documentPosition) {
+        return jdbc.sql("""
+                SELECT chunk_id, locator, content
+                FROM analysis_evidence_passage
+                WHERE analysis_id = :analysisId AND document_position = :documentPosition
+                ORDER BY position
+                """)
+                .param("analysisId", analysisId)
+                .param("documentPosition", documentPosition)
+                .query((row, rowNumber) -> new EvidencePassage(
+                        row.getObject("chunk_id", UUID.class), row.getString("locator"),
+                        row.getString("content")))
+                .list();
+    }
+
+    private List<ReviewEvent> loadReviewEvents(UUID analysisId) {
+        return jdbc.sql("""
+                SELECT id, question_id, actor, action, provenance, occurred_at,
+                       before_answer, after_answer, before_review_status, after_review_status
+                FROM analysis_review_event
+                WHERE analysis_id = :analysisId
+                ORDER BY ordinal
+                """)
+                .param("analysisId", analysisId)
+                .query((row, rowNumber) -> new ReviewEvent(
+                        row.getObject("id", UUID.class), row.getString("question_id"),
+                        ReviewActor.valueOf(row.getString("actor")),
+                        ReviewAction.valueOf(row.getString("action")),
+                        ReviewProvenance.valueOf(row.getString("provenance")),
+                        row.getTimestamp("occurred_at").toInstant(),
+                        row.getString("before_answer"), row.getString("after_answer"),
+                        row.getString("before_review_status") == null ? null
+                                : ReviewStatus.valueOf(row.getString("before_review_status")),
+                        ReviewStatus.valueOf(row.getString("after_review_status"))))
                 .list();
     }
 

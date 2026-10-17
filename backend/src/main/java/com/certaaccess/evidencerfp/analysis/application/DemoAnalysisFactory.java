@@ -5,6 +5,7 @@ import com.certaaccess.evidencerfp.analysis.domain.AnalysisStatus;
 import com.certaaccess.evidencerfp.analysis.domain.AnswerStatus;
 import com.certaaccess.evidencerfp.analysis.domain.Citation;
 import com.certaaccess.evidencerfp.analysis.domain.EvidenceDocument;
+import com.certaaccess.evidencerfp.analysis.domain.EvidencePassage;
 import com.certaaccess.evidencerfp.analysis.domain.Finding;
 import com.certaaccess.evidencerfp.analysis.domain.FindingSeverity;
 import com.certaaccess.evidencerfp.analysis.domain.FindingType;
@@ -16,7 +17,9 @@ import java.nio.charset.StandardCharsets;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 
 @Component
@@ -133,16 +136,16 @@ public class DemoAnalysisFactory {
                 "01-produktuebersicht.pdf", "Seite 15"));
 
         List<EvidenceDocument> documents = List.of(
-                new EvidenceDocument("01-produktuebersicht.pdf", "application/pdf", 15,
-                        LocalDate.of(2026, 9, 30), false),
-                new EvidenceDocument("02-authentifizierung.docx", "application/vnd.openxmlformats-officedocument.wordprocessingml.document", 6,
-                        LocalDate.of(2026, 9, 18), false),
-                new EvidenceDocument("03-betriebsleitfaden.pdf", "application/pdf", 20,
-                        LocalDate.of(2026, 9, 20), false),
-                new EvidenceDocument("04-notfallmanagement.docx", "application/vnd.openxmlformats-officedocument.wordprocessingml.document", 7,
-                        LocalDate.of(2024, 4, 15), true),
-                new EvidenceDocument("05-governance.docx", "application/vnd.openxmlformats-officedocument.wordprocessingml.document", 8,
-                        LocalDate.of(2026, 8, 29), false));
+                document("01-produktuebersicht.pdf", "application/pdf", 15,
+                        LocalDate.of(2026, 9, 30), false, questions),
+                document("02-authentifizierung.docx", "application/vnd.openxmlformats-officedocument.wordprocessingml.document", 6,
+                        LocalDate.of(2026, 9, 18), false, questions),
+                document("03-betriebsleitfaden.pdf", "application/pdf", 20,
+                        LocalDate.of(2026, 9, 20), false, questions),
+                document("04-notfallmanagement.docx", "application/vnd.openxmlformats-officedocument.wordprocessingml.document", 7,
+                        LocalDate.of(2024, 4, 15), true, questions),
+                document("05-governance.docx", "application/vnd.openxmlformats-officedocument.wordprocessingml.document", 8,
+                        LocalDate.of(2026, 8, 29), false, questions));
         List<Finding> findings = new ArrayList<>(List.of(conflict, stale, missing));
         findings.addAll(iam);
         return new Analysis(DEMO_ID, "Musterbank Nova (synthetisch)", true, AnalysisStatus.COMPLETED,
@@ -158,5 +161,17 @@ public class DemoAnalysisFactory {
     private Citation citation(String document, String locator, String quote) {
         UUID chunkId = UUID.nameUUIDFromBytes((document + locator).getBytes(StandardCharsets.UTF_8));
         return new Citation(chunkId, document, locator, quote);
+    }
+
+    private EvidenceDocument document(String name, String mediaType, int chunkCount,
+                                      LocalDate documentDate, boolean stale,
+                                      List<QuestionResult> questions) {
+        Map<UUID, EvidencePassage> passages = new LinkedHashMap<>();
+        questions.stream().flatMap(question -> question.citations().stream())
+                .filter(citation -> name.equals(citation.documentName()))
+                .forEach(citation -> passages.putIfAbsent(citation.chunkId(),
+                        new EvidencePassage(citation.chunkId(), citation.locator(), citation.quote())));
+        return new EvidenceDocument(name, mediaType, chunkCount, documentDate, stale,
+                List.copyOf(passages.values()));
     }
 }

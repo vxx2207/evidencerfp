@@ -2,6 +2,8 @@ package com.certaaccess.evidencerfp.analysis.application;
 
 import com.certaaccess.evidencerfp.analysis.domain.Analysis;
 import com.certaaccess.evidencerfp.analysis.domain.AnalysisStatus;
+import com.certaaccess.evidencerfp.analysis.domain.EvidenceDocument;
+import com.certaaccess.evidencerfp.analysis.domain.EvidencePassage;
 import com.certaaccess.evidencerfp.analysis.domain.Finding;
 import com.certaaccess.evidencerfp.analysis.domain.FindingSeverity;
 import com.certaaccess.evidencerfp.analysis.domain.FindingType;
@@ -122,7 +124,7 @@ public class AnalysisService {
 
             Analysis analysis = new Analysis(accepted.id(), accepted.customerName(), accepted.synthetic(),
                     AnalysisStatus.COMPLETED, accepted.createdAt(), clock.instant(), questions, findings,
-                    extracted.stream().map(ExtractedEvidence::document).toList());
+                    extracted.stream().map(this::documentWithPassages).toList());
             if (repository.findById(accepted.id()).isPresent()) repository.save(analysis);
         } catch (RuntimeException exception) {
             LOGGER.error("Analyse {} ist fehlgeschlagen", accepted.id(), exception);
@@ -140,7 +142,7 @@ public class AnalysisService {
     public QuestionResult updateQuestion(UUID analysisId, String questionId, String answer,
                                          ReviewStatus reviewStatus) {
         Analysis analysis = get(analysisId);
-        QuestionResult updated = analysis.updateQuestion(questionId, answer, reviewStatus);
+        QuestionResult updated = analysis.updateQuestion(questionId, answer, reviewStatus, clock.instant());
         repository.save(analysis);
         return updated;
     }
@@ -157,6 +159,15 @@ public class AnalysisService {
             throw new InvalidUploadException("Der IAM-Snapshot ist kein gültiges JSON-Dokument: "
                     + exception.getMessage());
         }
+    }
+
+    private EvidenceDocument documentWithPassages(ExtractedEvidence evidence) {
+        EvidenceDocument document = evidence.document();
+        List<EvidencePassage> passages = evidence.chunks().stream()
+                .map(chunk -> new EvidencePassage(chunk.id(), chunk.locator(), chunk.content()))
+                .toList();
+        return new EvidenceDocument(document.name(), document.mediaType(), document.chunkCount(),
+                document.documentDate(), document.stale(), passages);
     }
 
     private String normalizedCustomerName(String value) {

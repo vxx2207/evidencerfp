@@ -11,7 +11,7 @@ import {
   ShieldAlert,
   UserRoundX,
 } from 'lucide-react';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { formatAnalysisDateTime } from '../format';
 import type { Analysis, IamFinding } from '../types';
 import { PageIntro } from './Chrome';
@@ -24,8 +24,12 @@ function FindingIcon({ finding }: { finding: IamFinding }) {
   return <KeyRound size={23} />;
 }
 
-export function Findings({ analysis }: { analysis: Analysis }) {
+export function Findings({ analysis, focusFindingId }: { analysis: Analysis; focusFindingId?: string }) {
   const [expandedFindingId, setExpandedFindingId] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (focusFindingId) setExpandedFindingId(focusFindingId);
+  }, [focusFindingId]);
   const severityCounts = {
     critical: analysis.findings.filter((finding) => finding.severity === 'KRITISCH').length,
     high: analysis.findings.filter((finding) => finding.severity === 'HOCH').length,
@@ -50,7 +54,7 @@ export function Findings({ analysis }: { analysis: Analysis }) {
 
       <section className="finding-grid">
         {analysis.findings.map((finding, index) => (
-          <article key={finding.id} className={`finding-card severity-${finding.severity.toLowerCase()}`}>
+          <article key={finding.id} className={`finding-card severity-${finding.severity.toLowerCase()} ${focusFindingId === finding.id ? 'tour-focus' : ''}`}>
             <div className="finding-card-top">
               <div className="finding-icon"><FindingIcon finding={finding} /></div>
               <div><span className="rule-code">{finding.code}</span><h2>{finding.rule}</h2></div>

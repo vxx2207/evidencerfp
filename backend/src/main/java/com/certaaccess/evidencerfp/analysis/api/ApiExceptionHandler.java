@@ -3,6 +3,7 @@ package com.certaaccess.evidencerfp.analysis.api;
 import com.certaaccess.evidencerfp.analysis.application.AnalysisNotFoundException;
 import com.certaaccess.evidencerfp.analysis.application.AnalysisCapacityExceededException;
 import com.certaaccess.evidencerfp.analysis.domain.ApprovalBlockedException;
+import com.certaaccess.evidencerfp.analysis.domain.ReviewIncompleteException;
 import com.certaaccess.evidencerfp.evidence.InvalidUploadException;
 import jakarta.servlet.http.HttpServletRequest;
 import org.slf4j.Logger;
@@ -45,6 +46,12 @@ public class ApiExceptionHandler {
     ProblemDetail conflict(ApprovalBlockedException exception, HttpServletRequest request) {
         return problem(HttpStatus.CONFLICT, "Freigabe blockiert", exception.getMessage(),
                 "APPROVAL_BLOCKED", request);
+    }
+
+    @ExceptionHandler(ReviewIncompleteException.class)
+    ProblemDetail reviewIncomplete(ReviewIncompleteException exception, HttpServletRequest request) {
+        return problem(HttpStatus.CONFLICT, "Review unvollständig", exception.getMessage(),
+                "REVIEW_INCOMPLETE", request);
     }
 
     @ExceptionHandler(MaxUploadSizeExceededException.class)

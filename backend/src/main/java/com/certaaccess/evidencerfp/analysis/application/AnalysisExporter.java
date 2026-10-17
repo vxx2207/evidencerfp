@@ -4,6 +4,7 @@ import com.certaaccess.evidencerfp.analysis.domain.Analysis;
 import com.certaaccess.evidencerfp.analysis.domain.Citation;
 import com.certaaccess.evidencerfp.analysis.domain.Finding;
 import com.certaaccess.evidencerfp.analysis.domain.QuestionResult;
+import com.certaaccess.evidencerfp.analysis.domain.ReviewEvent;
 import org.apache.poi.ss.usermodel.CellStyle;
 import org.apache.poi.ss.usermodel.FillPatternType;
 import org.apache.poi.ss.usermodel.Font;
@@ -23,15 +24,19 @@ import java.util.stream.Collectors;
 public class AnalysisExporter {
 
     public byte[] toXlsx(Analysis analysis) {
-        try (Workbook workbook = new XSSFWorkbook(); ByteArrayOutputStream output = new ByteArrayOutputStream()) {
-            CellStyle header = headerStyle(workbook);
-            writeQuestions(workbook, header, analysis);
-            writeFindings(workbook, header, analysis.findings());
-            writeEvidence(workbook, header, analysis);
-            workbook.write(output);
-            return output.toByteArray();
-        } catch (IOException exception) {
-            throw new IllegalStateException("XLSX-Export konnte nicht erstellt werden.", exception);
+        synchronized (analysis) {
+            analysis.requireCompleteReview();
+            try (Workbook workbook = new XSSFWorkbook(); ByteArrayOutputStream output = new ByteArrayOutputStream()) {
+                CellStyle header = headerStyle(workbook);
+                writeQuestions(workbook, header, analysis);
+                writeFindings(workbook, header, analysis.findings());
+                writeEvidence(workbook, header, analysis);
+                writeReview(workbook, header, analysis.reviewEvents());
+                workbook.write(output);
+                return output.toByteArray();
+            } catch (IOException exception) {
+                throw new IllegalStateException("XLSX-Export konnte nicht erstellt werden.", exception);
+            }
         }
     }
 
@@ -76,6 +81,22 @@ public class AnalysisExporter {
             values(row, document.name(), document.mediaType(), String.valueOf(document.chunkCount()),
                     document.documentDate() == null ? "Nicht erkannt" : document.documentDate().toString(),
                     document.stale() ? "Ja" : "Nein");
+        }
+        finish(sheet, columns.length);
+    }
+
+    private void writeReview(Workbook workbook, CellStyle header, List<ReviewEvent> events) {
+        Sheet sheet = workbook.createSheet("Review");
+        String[] columns = {"Zeitpunkt", "Frage-ID", "Akteur", "Aktion", "Provenienz",
+                "Antwort vorher", "Antwort nachher", "Reviewstatus vorher", "Reviewstatus nachher"};
+        writeHeader(sheet, header, columns);
+        int rowIndex = 1;
+        for (ReviewEvent event : events) {
+            Row row = sheet.createRow(rowIndex++);
+            values(row, event.occurredAt().toString(), event.questionId(), event.actor().name(),
+                    event.action().name(), event.provenance().name(), event.beforeAnswer(), event.afterAnswer(),
+                    event.beforeReviewStatus() == null ? "" : event.beforeReviewStatus().name(),
+                    event.afterReviewStatus().name());
         }
         finish(sheet, columns.length);
     }

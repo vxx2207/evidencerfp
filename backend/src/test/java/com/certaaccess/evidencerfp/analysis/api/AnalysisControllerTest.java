@@ -6,6 +6,10 @@ import com.certaaccess.evidencerfp.analysis.application.AnalysisService;
 import com.certaaccess.evidencerfp.analysis.application.DemoAnalysisFactory;
 import com.certaaccess.evidencerfp.analysis.domain.Analysis;
 import com.certaaccess.evidencerfp.analysis.domain.ApprovalBlockedException;
+import com.certaaccess.evidencerfp.analysis.domain.AnswerStatus;
+import com.certaaccess.evidencerfp.analysis.domain.Finding;
+import com.certaaccess.evidencerfp.analysis.domain.QuestionResult;
+import com.certaaccess.evidencerfp.analysis.domain.ReviewStatus;
 import com.certaaccess.evidencerfp.evidence.UploadValidationProperties;
 import com.certaaccess.evidencerfp.iam.IamControlEvaluator;
 import org.junit.jupiter.api.BeforeEach;
@@ -62,7 +66,10 @@ class AnalysisControllerTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.synthetic").value(true))
                 .andExpect(jsonPath("$.questions.length()").value(24))
-                .andExpect(jsonPath("$.findings.length()").value(6));
+                .andExpect(jsonPath("$.findings.length()").value(6))
+                .andExpect(jsonPath("$.evidenceDocuments[0].passages.length()").isNumber())
+                .andExpect(jsonPath("$.reviewEvents.length()").value(24))
+                .andExpect(jsonPath("$.reviewEvents[0].provenance").value("GENERATED"));
     }
 
     @Test
@@ -124,6 +131,7 @@ class AnalysisControllerTest {
 
     @Test
     void exportsEvidencePackAndDeletesAnalysis() throws Exception {
+        decideEveryQuestion(demo);
         mvc.perform(get("/api/v1/analyses/{id}/export.xlsx", DemoAnalysisFactory.DEMO_ID))
                 .andExpect(status().isOk())
                 .andExpect(content().contentType(
@@ -133,5 +141,23 @@ class AnalysisControllerTest {
         doNothing().when(service).delete(DemoAnalysisFactory.DEMO_ID);
         mvc.perform(delete("/api/v1/analyses/{id}", DemoAnalysisFactory.DEMO_ID))
                 .andExpect(status().isNoContent());
+    }
+
+    @Test
+    void rejectsExportUntilEveryQuestionHasAHumanDecision() throws Exception {
+        mvc.perform(get("/api/v1/analyses/{id}/export.xlsx", DemoAnalysisFactory.DEMO_ID))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.code").value("REVIEW_INCOMPLETE"))
+                .andExpect(jsonPath("$.title").value("Review unvollständig"));
+    }
+
+    private void decideEveryQuestion(Analysis analysis) {
+        for (QuestionResult question : analysis.questions()) {
+            ReviewStatus decision = question.answerStatus() == AnswerStatus.NOT_FOUND
+                    || question.findings().stream().anyMatch(Finding::blocksApproval)
+                    ? ReviewStatus.CHANGES_REQUIRED
+                    : ReviewStatus.APPROVED;
+            analysis.updateQuestion(question.id(), null, decision);
+        }
     }
 }

@@ -5,7 +5,7 @@
 - **Evidenz vor Eloquenz:** Eine gute Formulierung ersetzt keinen gültigen Beleg.
 - **Server entscheidet:** Status, Zitationen, Freigaben und Export werden nicht dem Browser oder Modell überlassen.
 - **Keine LLM-Aktionen:** Das Modell erhält keine Tools, Systemzugriffe oder frei nutzbaren Netzwerkfunktionen.
-- **Lokale Voreinstellung:** Dokumente und Embeddings bleiben im Demo-/Ollama-Betrieb bei Anwendung, Ollama und PostgreSQL auf dem Rechner.
+- **Lokale Voreinstellung:** Dokumente und Embeddings bleiben im Demo-/Ollama-Betrieb bei Anwendung, Ollama und PostgreSQL auf dem Rechner. Production-Backend sowie veröffentlichte PostgreSQL-/Ollama-Ports binden standardmäßig ausschließlich an `127.0.0.1`.
 - **Human in the loop:** Kein Entwurf wird ohne explizite Prüfung zur autoritativen Kundenaussage.
 - **Minimierte Demo:** GitHub Pages enthält nur vorberechnete synthetische JSON-Daten und keinen Upload.
 
@@ -19,7 +19,7 @@ Die konkrete Konfiguration des Backends ist maßgeblich; öffentlich dokumentier
 
 ## Datenschutz und Datenhaltung
 
-Der Portfolio-MVP ist ausschließlich für synthetische Daten vorgesehen. Auch bei lokaler Ausführung können Inhalte in PostgreSQL, Logs, temporären Parserdateien, Backups und Embeddings verbleiben. Der DELETE-Endpunkt löscht die Anwendungsdaten einer Analyse, ist aber kein zertifizierter Löschprozess über externe Backups oder Snapshots.
+Der Portfolio-MVP ist ausschließlich für synthetische Daten vorgesehen. Auch bei lokaler Ausführung können Inhalte in PostgreSQL, vollständigen Quellenpassagen, Reviewereignissen, Logs, temporären Parserdateien, Backups und Embeddings verbleiben. Der DELETE-Endpunkt löscht die Anwendungsdaten einer Analyse, ist aber kein zertifizierter Löschprozess über externe Backups oder Snapshots.
 
 Cloud-KI wird nur über das explizite Maven- und Spring-Profil `openai` genutzt. Dabei werden abgerufene Dokumentpassagen an den konfigurierten Provider übertragen. Wer das Profil aktiviert, ist für Providervertrag, Region, Aufbewahrung, Trainingseinstellungen und Schlüsselverwaltung verantwortlich.
 

@@ -19,7 +19,20 @@ describe('ApiAnalysisGateway', () => {
       .mockResolvedValueOnce(jsonResponse({ id: 'analysis-1', status: 'COMPLETED', createdAt: '2026-10-15T00:00:00Z' }))
       .mockResolvedValueOnce(jsonResponse({
         id: 'analysis-1', customerName: 'API-Kunde', status: 'COMPLETED',
-        questions: [], findings: [], evidenceDocuments: [],
+        questions: [{
+          id: 'RFP-001', question: 'Wird MFA unterstützt?', category: 'IAM',
+          answer: 'Ja.', answerStatus: 'SUPPORTED', reviewStatus: 'DRAFT',
+          citations: [{ chunkId: 'chunk-1', documentName: 'security.pdf', locator: 'Seite 2', quote: 'MFA wird unterstützt.' }],
+          findings: [],
+        }],
+        findings: [],
+        evidenceDocuments: [{
+          name: 'security.pdf', mediaType: 'application/pdf', chunkCount: 1, stale: false,
+          passages: [{
+            chunkId: 'chunk-1', locator: 'Seite 2',
+            content: 'Kontext vor dem Beleg. MFA wird unterstützt. Kontext nach dem Beleg.',
+          }],
+        }],
       }));
     vi.stubGlobal('fetch', fetchMock);
     const gateway = new ApiAnalysisGateway('http://localhost:8080', 0, 5);
@@ -33,6 +46,8 @@ describe('ApiAnalysisGateway', () => {
 
     expect(result.id).toBe('analysis-1');
     expect(result.customer).toBe('API-Kunde');
+    expect(result.documents[0].sections[0].content)
+      .toContain('Kontext vor dem Beleg');
     expect(fetchMock).toHaveBeenCalledTimes(5);
     expect(onProgress).toHaveBeenLastCalledWith(expect.objectContaining({
       status: 'COMPLETED', percent: 100,

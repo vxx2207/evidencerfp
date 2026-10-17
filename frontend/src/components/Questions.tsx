@@ -2,6 +2,7 @@ import { ArrowRight, Check, ChevronDown, Filter, ListFilter, Search, SlidersHori
 import { useMemo, useState } from 'react';
 import type { Analysis, AnswerStatus, Question } from '../types';
 import { formatAnalysisDateTime } from '../format';
+import { isReviewOpen } from '../review';
 import { PageIntro } from './Chrome';
 import { AnswerBadge, ReviewBadge } from './StatusBadge';
 
@@ -20,12 +21,13 @@ export function Questions({ analysis, onOpenQuestion }: { analysis: Analysis; on
   const [category, setCategory] = useState('Alle Kategorien');
   const [onlyOpen, setOnlyOpen] = useState(false);
   const categories = ['Alle Kategorien', ...new Set(analysis.questions.map((q) => q.category))];
+  const nextOpenQuestion = analysis.questions.find((question) => isReviewOpen(question.reviewStatus));
 
   const questions = useMemo(() => analysis.questions.filter((question) => {
     const matchesSearch = `${question.id} ${question.text} ${question.category}`.toLowerCase().includes(query.toLowerCase());
     const matchesStatus = status === 'ALL' || question.status === status;
     const matchesCategory = category === 'Alle Kategorien' || question.category === category;
-    const matchesReview = !onlyOpen || question.reviewStatus !== 'FREIGEGEBEN';
+    const matchesReview = !onlyOpen || isReviewOpen(question.reviewStatus);
     return matchesSearch && matchesStatus && matchesCategory && matchesReview;
   }), [analysis.questions, category, onlyOpen, query, status]);
 
@@ -37,7 +39,7 @@ export function Questions({ analysis, onOpenQuestion }: { analysis: Analysis; on
         eyebrow="RFP Workspace"
         title="Frage-Queue"
         description={`${analysis.questions.length} Antworten, priorisiert nach Evidenzlage und Freigabestatus. Jede Aussage bleibt bis zur Quelle rückverfolgbar.`}
-        action={<button className="button button-primary" onClick={() => onOpenQuestion(analysis.questions.find((q) => q.reviewStatus !== 'FREIGEGEBEN') ?? analysis.questions[0])}>Nächstes Review <ArrowRight size={16} /></button>}
+        action={<button className="button button-primary" disabled={!nextOpenQuestion} onClick={() => nextOpenQuestion && onOpenQuestion(nextOpenQuestion)}>{nextOpenQuestion ? 'Nächstes Review' : 'Review abgeschlossen'} <ArrowRight size={16} /></button>}
       />
 
       <section className="panel queue-panel">

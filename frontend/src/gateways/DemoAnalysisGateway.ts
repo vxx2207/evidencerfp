@@ -1,7 +1,7 @@
 import fixture from '../data/analysis.json';
 import type { Analysis, AnalysisGateway, AnalysisInput, Capabilities, Question, QuestionUpdate } from '../types';
 
-const STORAGE_KEY = 'evidence-rfp-demo-analysis-v1';
+const STORAGE_KEY = 'evidence-rfp-demo-analysis-v2';
 
 function freshAnalysis(): Analysis {
   return structuredClone(fixture) as Analysis;
@@ -18,11 +18,6 @@ function loadAnalysis(): Analysis {
   }
 }
 
-function csvCell(value: string | number): string {
-  const normalized = String(value).replace(/\r?\n/g, ' ');
-  return `"${normalized.replace(/"/g, '""')}"`;
-}
-
 export class DemoAnalysisGateway implements AnalysisGateway {
   private analysis = loadAnalysis();
 
@@ -31,7 +26,7 @@ export class DemoAnalysisGateway implements AnalysisGateway {
       mode: 'demo',
       uploadsEnabled: false,
       aiEnabled: false,
-      exportFormats: ['CSV'],
+      exportFormats: ['XLSX'],
       models: { chat: 'Vorberechnete Demo', embeddings: 'Vorberechnete Demo' },
     };
   }
@@ -53,17 +48,13 @@ export class DemoAnalysisGateway implements AnalysisGateway {
   }
 
   async exportAnalysis(analysis: Analysis): Promise<Blob> {
-    const headers = ['ID', 'Kategorie', 'Frage', 'Status', 'Review', 'Antwort', 'Quellen'];
-    const rows = analysis.questions.map((question) => [
-      question.id,
-      question.category,
-      question.text,
-      question.status,
-      question.reviewStatus,
-      question.answer,
-      question.citations.map((citation) => `${citation.section} (S. ${citation.page})`).join(' | '),
-    ]);
-    const csv = [headers, ...rows].map((row) => row.map(csvCell).join(';')).join('\r\n');
-    return new Blob([`\uFEFF${csv}`], { type: 'text/csv;charset=utf-8' });
+    const { createEvidencePack } = await import('../export/evidencePack');
+    return createEvidencePack(analysis);
+  }
+
+  async resetAnalysis(): Promise<Analysis> {
+    if (typeof window !== 'undefined') window.localStorage.removeItem(STORAGE_KEY);
+    this.analysis = freshAnalysis();
+    return structuredClone(this.analysis);
   }
 }

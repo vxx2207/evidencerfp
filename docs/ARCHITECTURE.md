@@ -15,6 +15,7 @@ flowchart TB
     end
 
     DEMO --> JSON[statische synthetische Fixtures]
+    DEMO --> BROWSERXLSX[XLSX im Browser]
     LIVE --> REST[REST API]
 
     subgraph Backend
@@ -43,7 +44,7 @@ flowchart TB
 | Analysis | Orchestrierung, strukturierte Antwortentwürfe | Autoritative Security-Entscheidungen |
 | Citation | Chunk-Zugehörigkeit und wörtliche Fundstelle prüfen | Neue Belege erzeugen |
 | IAM Controls | Drei deterministische Regeln auf Snapshot-Daten | Änderungen am IdP |
-| Review | Editieren, Konfliktsperre, Human-in-the-loop-Freigabe | Automatische Genehmigung bei Konflikten |
+| Review | Editieren, Konfliktsperre, Human-in-the-loop-Freigabe und append-only Ereignisprotokoll | Automatische Genehmigung bei Konflikten |
 | Export | Formula-Injection-sicheres XLSX Evidence Pack | Originaldateien verändern |
 
 ## Datenfluss
@@ -56,11 +57,13 @@ flowchart TB
 6. Eine Zitation ist nur gültig, wenn der normalisierte Zitatausschnitt im referenzierten Chunk enthalten ist.
 7. Der IAM-Snapshot wird getrennt davon durch deterministische Regeln verarbeitet.
 8. Konflikte, veraltete Quellen und fehlende Belege werden modellunabhängig als Findings gespeichert und beeinflussen den Freigabestatus.
-9. Nur der vom Menschen geprüfte Stand wird exportiert.
+9. Vollständige extrahierte Quellenpassagen werden unabhängig vom kurzlebigen Retrieval-Index für die menschliche Nachprüfung gespeichert.
+10. Jede Bearbeitung oder Reviewentscheidung erzeugt ein append-only Ereignis mit Provenienz, Vorher-/Nachher-Werten und Zeitstempel.
+11. Der Export wird erst freigegeben, wenn jede Frage bewusst freigegeben oder als Klärung blockiert wurde.
 
 ## Frontend-Modi
 
-`DemoAnalysisGateway` lädt unveränderliche, vorberechnete Ergebnisse. Es besitzt keine Upload-Funktion und sendet keine Daten an einen Server. `ApiAnalysisGateway` spricht mit der lokalen REST-API. Beide implementieren dasselbe Interface, sodass UI und Demo-Story identisch bleiben.
+`DemoAnalysisGateway` lädt vorberechnete Ergebnisse, hält lokale Reviewänderungen ausschließlich im Browser und kann sie auf den definierten Ausgangszustand zurücksetzen. Es besitzt keine Upload-Funktion und sendet keine Daten an einen Server. Das synthetische XLSX Evidence Pack wird ebenfalls im Browser erzeugt. `ApiAnalysisGateway` spricht mit der lokalen REST-API. Beide implementieren dasselbe Interface, sodass UI und Demo-Story identisch bleiben.
 
 Die Auswahl erfolgt beim Build über `VITE_APP_MODE=demo|api`. Für GitHub Pages wird ausschließlich `demo` verwendet.
 
@@ -74,7 +77,7 @@ Die Auswahl erfolgt beim Build über `VITE_APP_MODE=demo|api`. Für GitHub Pages
 - **Begrenzter lokaler Job-Runner:** Der POST-Request validiert und puffert Uploads, gibt eine ID zurück und übergibt die Verarbeitung an einen kleinen Thread-Pool. Status-Polling hält lange Ollama-Läufe aus dem Request-Lifecycle heraus.
 - **Keine numerische KI-Konfidenz:** Status und überprüfbare Evidenz sind erklärbarer als scheinpräzise Scores.
 
-Im `production`-Profil werden Analysen, Fragen, Review-Status, Findings und Dokumentmetadaten relational in PostgreSQL gespeichert. Retrieval-Chunks werden einmal pro Analyse in einen isolierten pgvector-Arbeitsindex geschrieben, für alle Fragen wiederverwendet und anschließend entfernt. Das Demo-Profil verwendet absichtlich ein In-Memory-Repository.
+Im `production`-Profil werden Analysen, Fragen, Review-Status, Findings, Dokumentmetadaten, vollständige Quellenpassagen und Reviewereignisse relational in PostgreSQL gespeichert. Retrieval-Chunks werden einmal pro Analyse in einen isolierten pgvector-Arbeitsindex geschrieben, für alle Fragen wiederverwendet und anschließend entfernt. Die Reviewpassagen bleiben davon getrennt erhalten, damit Zitationen nach Abschluss weiterhin auf den vollständigen Kontext zeigen. Das Demo-Profil verwendet absichtlich ein In-Memory-Repository.
 
 ## Laufzeitannahmen
 

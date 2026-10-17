@@ -27,6 +27,7 @@ import {
 } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
 import type { Analysis, Citation, EvidenceDocument, Question, QuestionUpdate } from '../types';
+import { isReviewDecided } from '../review';
 import { AnswerBadge, ReviewBadge } from './StatusBadge';
 
 function CitationDrawer({ citation, document, onClose }: { citation: Citation; document?: EvidenceDocument; onClose: () => void }) {
@@ -68,11 +69,13 @@ export function Workbench({
   activeQuestion,
   onSelectQuestion,
   onUpdateQuestion,
+  tourCitationId,
 }: {
   analysis: Analysis;
   activeQuestion: Question;
   onSelectQuestion: (question: Question) => void;
   onUpdateQuestion: (questionId: string, update: QuestionUpdate) => Promise<void>;
+  tourCitationId?: string;
 }) {
   const [query, setQuery] = useState('');
   const [editing, setEditing] = useState(false);
@@ -87,6 +90,12 @@ export function Workbench({
     setSelectedCitation(null);
     setCopyState('idle');
   }, [activeQuestion.id, activeQuestion.answer]);
+
+  useEffect(() => {
+    if (!tourCitationId) return;
+    const citation = activeQuestion.citations.find((item) => item.id === tourCitationId);
+    if (citation) setSelectedCitation(citation);
+  }, [activeQuestion.citations, tourCitationId]);
 
   const visibleQuestions = useMemo(() => analysis.questions.filter((question) => `${question.id} ${question.text}`.toLowerCase().includes(query.toLowerCase())), [analysis.questions, query]);
   const activeIndex = analysis.questions.findIndex((question) => question.id === activeQuestion.id);
@@ -135,12 +144,12 @@ export function Workbench({
 
       <div className="workbench-grid">
         <aside className="question-rail">
-          <div className="rail-header"><strong>Fragen</strong><span>{analysis.questions.filter((q) => q.reviewStatus === 'FREIGEGEBEN').length} geprüft</span></div>
+          <div className="rail-header"><strong>Fragen</strong><span>{analysis.questions.filter((q) => isReviewDecided(q.reviewStatus)).length} entschieden</span></div>
           <label className="rail-search"><Search size={15} /><input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Suchen …" /></label>
           <div className="rail-list">
             {visibleQuestions.map((question) => (
               <button key={question.id} className={question.id === activeQuestion.id ? 'active' : ''} onClick={() => onSelectQuestion(question)}>
-                <span className={`rail-status status-${question.status.toLowerCase()}`}>{question.reviewStatus === 'FREIGEGEBEN' ? <Check size={12} /> : question.status === 'NOT_FOUND' ? <Ban size={11} /> : null}</span>
+                <span className={`rail-status status-${question.status.toLowerCase()}`}>{question.reviewStatus === 'FREIGEGEBEN' ? <Check size={12} /> : question.reviewStatus === 'BLOCKIERT' ? <Ban size={11} /> : null}</span>
                 <span><small>{question.id} · {question.category}</small><strong>{question.text}</strong></span>
                 <ChevronRight size={14} />
               </button>
@@ -200,8 +209,8 @@ export function Workbench({
 
           <div className="review-actions">
             <div><span>Deine Entscheidung</span><small>Änderungen werden im Review-Protokoll erfasst.</small></div>
-            <button className="button button-danger" disabled={saving} onClick={() => update({ reviewStatus: 'BLOCKIERT' })}><X size={16} /> Blockieren</button>
-            <button className="button button-approve" disabled={saving || approvalBlocked} title={approvalBlocked ? 'Konflikt oder fehlende Evidenz muss zuerst geklärt werden.' : undefined} onClick={() => update({ reviewStatus: 'FREIGEGEBEN' })}><Check size={16} /> Freigeben</button>
+            <button className="button button-danger" disabled={saving || activeQuestion.reviewStatus === 'BLOCKIERT'} onClick={() => update({ reviewStatus: 'BLOCKIERT' })}><X size={16} /> Blockieren</button>
+            <button className="button button-approve" disabled={saving || approvalBlocked || activeQuestion.reviewStatus === 'FREIGEGEBEN'} title={approvalBlocked ? 'Konflikt oder fehlende Evidenz muss zuerst geklärt werden.' : undefined} onClick={() => update({ reviewStatus: 'FREIGEGEBEN' })}><Check size={16} /> Freigeben</button>
           </div>
         </main>
 

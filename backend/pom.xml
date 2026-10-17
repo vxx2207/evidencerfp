@@ -13,7 +13,7 @@
 
     <groupId>com.certaaccess</groupId>
     <artifactId>evidence-rfp-backend</artifactId>
-    <version>0.1.0-SNAPSHOT</version>
+    <version>0.1.0</version>
     <name>EvidenceRFP Backend</name>
     <description>Belegbare Security-Fragebogenanalyse mit deterministischen IAM-Kontrollen</description>
 

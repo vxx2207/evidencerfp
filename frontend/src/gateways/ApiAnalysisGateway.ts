@@ -90,7 +90,16 @@ function mapQuestion(raw: JsonRecord): Question {
 function mapDocument(raw: JsonRecord, questions: Question[]): EvidenceDocument {
   const fileName = text(raw.name ?? raw.title ?? raw.fileName, 'Evidenzdokument');
   const mediaType = text(raw.mediaType ?? raw.type).toLowerCase();
-  const sections = questions.flatMap((question) => question.citations)
+  const persistedPassages = array(raw.passages).map((passage, index) => {
+    const locator = text(passage.locator ?? passage.title, 'Evidenzpassage');
+    return {
+      id: text(passage.chunkId ?? passage.id, `passage-${index}`),
+      title: locator,
+      page: Number(passage.page ?? pageFromLocator(locator)),
+      content: text(passage.content ?? passage.text),
+    };
+  });
+  const citedPassages = questions.flatMap((question) => question.citations)
     .filter((citation) => citation.documentId === fileName)
     .filter((citation, index, all) => all.findIndex((item) => item.chunkId === citation.chunkId) === index)
     .map((citation) => ({
@@ -99,6 +108,7 @@ function mapDocument(raw: JsonRecord, questions: Question[]): EvidenceDocument {
       page: citation.page,
       content: citation.quote,
     }));
+  const sections = persistedPassages.length > 0 ? persistedPassages : citedPassages;
   return {
     id: text(raw.id, fileName),
     title: fileName,

@@ -16,11 +16,20 @@ public final class Analysis {
     private final Map<String, QuestionResult> questions;
     private final List<Finding> findings;
     private final List<EvidenceDocument> evidenceDocuments;
+    private final List<ReviewEvent> reviewEvents;
     private final AnalysisStatus status;
 
     public Analysis(UUID id, String customerName, boolean synthetic, AnalysisStatus status,
                     Instant createdAt, Instant completedAt, List<QuestionResult> questions,
                     List<Finding> findings, List<EvidenceDocument> evidenceDocuments) {
+        this(id, customerName, synthetic, status, createdAt, completedAt, questions, findings,
+                evidenceDocuments, initialReviewEvents(id, status, createdAt, completedAt, questions));
+    }
+
+    public Analysis(UUID id, String customerName, boolean synthetic, AnalysisStatus status,
+                    Instant createdAt, Instant completedAt, List<QuestionResult> questions,
+                    List<Finding> findings, List<EvidenceDocument> evidenceDocuments,
+                    List<ReviewEvent> reviewEvents) {
         this.id = id;
         this.customerName = customerName;
         this.synthetic = synthetic;
@@ -31,6 +40,7 @@ public final class Analysis {
         questions.forEach(question -> this.questions.put(question.id(), question));
         this.findings = List.copyOf(findings);
         this.evidenceDocuments = List.copyOf(evidenceDocuments);
+        this.reviewEvents = new ArrayList<>(reviewEvents);
     }
 
     public UUID id() { return id; }
@@ -42,8 +52,34 @@ public final class Analysis {
     public synchronized List<QuestionResult> questions() { return new ArrayList<>(questions.values()); }
     public List<Finding> findings() { return findings; }
     public List<EvidenceDocument> evidenceDocuments() { return evidenceDocuments; }
+    public synchronized List<ReviewEvent> reviewEvents() { return List.copyOf(reviewEvents); }
+
+    public synchronized boolean reviewComplete() {
+        return status == AnalysisStatus.COMPLETED && !questions.isEmpty()
+                && questions.values().stream()
+                .allMatch(question -> question.reviewStatus() != ReviewStatus.DRAFT);
+    }
+
+    public synchronized void requireCompleteReview() {
+        if (status != AnalysisStatus.COMPLETED) {
+            throw new ReviewIncompleteException(
+                    "Der Export ist erst nach Abschluss der Analyse möglich.");
+        }
+        long openQuestions = questions.values().stream()
+                .filter(question -> question.reviewStatus() == ReviewStatus.DRAFT)
+                .count();
+        if (questions.isEmpty() || openQuestions > 0) {
+            throw new ReviewIncompleteException("Der Export ist erst möglich, wenn jede Frage entschieden ist. "
+                    + "Noch offene Fragen: " + openQuestions + ".");
+        }
+    }
 
     public synchronized QuestionResult updateQuestion(String questionId, String answer, ReviewStatus reviewStatus) {
+        return updateQuestion(questionId, answer, reviewStatus, Instant.now());
+    }
+
+    public synchronized QuestionResult updateQuestion(String questionId, String answer, ReviewStatus reviewStatus,
+                                                       Instant occurredAt) {
         QuestionResult current = questions.get(questionId);
         if (current == null) {
             throw new IllegalArgumentException("Frage wurde nicht gefunden: " + questionId);
@@ -55,7 +91,20 @@ public final class Analysis {
                     "Die Frage kann wegen blockierender Findings nicht freigegeben werden.");
         }
         QuestionResult updated = current.update(answer, reviewStatus);
-        questions.put(questionId, updated);
+        if (!current.equals(updated)) {
+            questions.put(questionId, updated);
+            reviewEvents.add(ReviewEvent.humanChange(current, updated, occurredAt));
+        }
         return updated;
+    }
+
+    private static List<ReviewEvent> initialReviewEvents(UUID analysisId, AnalysisStatus status,
+                                                         Instant createdAt, Instant completedAt,
+                                                         List<QuestionResult> questions) {
+        if (status != AnalysisStatus.COMPLETED) return List.of();
+        Instant occurredAt = completedAt == null ? createdAt : completedAt;
+        return questions.stream()
+                .map(question -> ReviewEvent.generated(analysisId, question, occurredAt))
+                .toList();
     }
 }

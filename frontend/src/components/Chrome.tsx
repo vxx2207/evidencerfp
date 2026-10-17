@@ -13,6 +13,7 @@ import {
 } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import type { Analysis, AppView, Question } from '../types';
+import { isReviewDecided } from '../review';
 
 interface NavItem {
   id: AppView;
@@ -73,7 +74,13 @@ export function Sidebar({
           {items.map((item) => {
             const Icon = item.icon;
             return (
-              <button key={item.id} className={`nav-item ${view === item.id ? 'active' : ''}`} onClick={() => navigate(item.id)} aria-current={view === item.id ? 'page' : undefined}>
+              <button
+                key={item.id}
+                className={`nav-item ${view === item.id ? 'active' : ''}`}
+                onClick={() => navigate(item.id)}
+                aria-current={view === item.id ? 'page' : undefined}
+                aria-label={item.id === 'questions' ? `${item.label}, ${item.count ?? 0} offen` : item.count === undefined ? item.label : `${item.label}, ${item.count}`}
+              >
                 <Icon size={18} aria-hidden="true" />
                 <span>{item.label}</span>
                 {item.count !== undefined && <span className="nav-count">{item.count}</span>}
@@ -149,7 +156,7 @@ export function GlobalSearch({
     { id: 'questions', label: 'Frage-Queue', description: `${analysis.questions.filter((question) => question.reviewStatus === 'OFFEN').length} Reviews offen`, icon: FileQuestion },
     { id: 'findings', label: 'IAM Findings', description: `${analysis.findings.length} strukturierte Befunde`, icon: ShieldAlert },
     { id: 'evidence', label: 'Evidence Library', description: `${analysis.documents.length} Quelldokumente`, icon: BookOpenText },
-    { id: 'review', label: 'Review & Export', description: `${analysis.questions.filter((question) => question.reviewStatus === 'FREIGEGEBEN').length} von ${analysis.questions.length} freigegeben`, icon: ClipboardCheck },
+    { id: 'review', label: 'Review & Export', description: `${analysis.questions.filter((question) => isReviewDecided(question.reviewStatus)).length} von ${analysis.questions.length} entschieden`, icon: ClipboardCheck },
   ];
   const matchingNavigation = navigationItems.filter((item) => !normalizedQuery || `${item.label} ${item.description}`.toLocaleLowerCase('de').includes(normalizedQuery));
   const matchingQuestions = normalizedQuery

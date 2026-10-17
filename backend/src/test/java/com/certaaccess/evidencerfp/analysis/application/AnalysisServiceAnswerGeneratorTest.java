@@ -66,6 +66,17 @@ class AnalysisServiceAnswerGeneratorTest {
         });
         assertThat(retriever.called).isTrue();
         assertThat(generator.received).containsExactly(chunk);
+        assertThat(result.evidenceDocuments()).singleElement().satisfies(document ->
+                assertThat(document.passages()).singleElement().satisfies(passage -> {
+                    assertThat(passage.chunkId()).isEqualTo(chunk.id());
+                    assertThat(passage.locator()).isEqualTo("Seite 1");
+                    assertThat(passage.content()).isEqualTo("FIDO2 wird unterstützt.");
+                }));
+        assertThat(result.reviewEvents()).singleElement().satisfies(event -> {
+            assertThat(event.questionId()).isEqualTo("RFP-001");
+            assertThat(event.provenance().name()).isEqualTo("GENERATED");
+            assertThat(event.occurredAt()).isEqualTo(clock.instant());
+        });
     }
 
     private static final class RecordingRetriever implements EvidenceRetriever {

@@ -106,6 +106,7 @@ export interface AnalysisGateway {
   createAnalysis(input: AnalysisInput, onProgress?: (progress: AnalysisProgress) => void): Promise<Analysis>;
   updateQuestion(analysisId: string, questionId: string, update: QuestionUpdate): Promise<Question>;
   exportAnalysis(analysis: Analysis): Promise<Blob>;
+  resetAnalysis?(): Promise<Analysis>;
 }
 
 export type AppView = 'dashboard' | 'questions' | 'workbench' | 'findings' | 'evidence' | 'review';

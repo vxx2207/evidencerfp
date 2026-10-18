@@ -15,6 +15,7 @@ Alle nennenswerten Änderungen an EvidenceRFP werden in dieser Datei dokumentier
 - stabiler OpenAPI-3.1-Vertrag und reproduzierbar generierter TypeScript-Client
 - Micrometer-/Prometheus-Metriken, sichere Fehlercodes und strukturierte Korrelationslogs
 - kompakter Techniknachweis in der Review-Oberfläche
+- aktuelle Konflikt-/IAM-Screenshots, animierte Kurztour und 90-Sekunden-Aufnahme mit WebVTT-Untertiteln
 
 ### Geändert
 

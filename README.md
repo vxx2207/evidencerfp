@@ -21,9 +21,20 @@ EvidenceRFP unterstützt Technical-Sales-Teams dabei, wiederkehrende Security-Fr
 |---:|---:|---:|---:|
 | deutsch, synthetisch, versioniert | MRR 97,8 % in der CI-Baseline | Claim, Chunk und Zitat serverseitig geprüft | ohne LLM-Entscheidung |
 
+[![Geführte EvidenceRFP-Tour: Quelle, Konflikt, NOT_FOUND, IAM-Finding und Human Gate](docs/assets/evidencerfp-tour.gif)](docs/assets/evidencerfp-90s.webm)
+
+*Acht Sekunden durch die fünf festen Tour-Stationen; Klick öffnet die [90-Sekunden-Aufnahme](docs/assets/evidencerfp-90s.webm) mit separaten [WebVTT-Untertiteln](docs/assets/evidencerfp-90s.vtt). Vollständig synthetisch.*
+
 ![EvidenceRFP Answer Workbench mit geöffneter, exakt markierter Quellenpassage](docs/assets/evidence-review.png)
 
 *Echter Screenshot der laufenden React-Anwendung; alle sichtbaren Namen, Dokumente und Ergebnisse sind synthetisch.*
+
+| Quellenkonflikt stoppt die Freigabe | Deterministische IAM-Kontrolle |
+|---|---|
+| ![IAM-020 zeigt widersprüchliche Aufbewahrungsfristen und eine gesperrte Freigabe](docs/assets/evidence-conflict.png) | ![IAM Findings zeigt das reproduzierbare MFA-Finding finding-001](docs/assets/evidence-finding.png) |
+| `IAM-020`: 365 und 180 Tage werden nebeneinander gezeigt. | `finding-001`: Regel, betroffenes Objekt, Nachweis und Maßnahme sind nachvollziehbar. |
+
+*Aktuelle Aufnahmen der geführten Demo bei 1440 × 900 Pixeln; vollständig synthetisch.*
 
 ## Der 60-Sekunden-Scan
 

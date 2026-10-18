@@ -13,7 +13,9 @@ Diese Liste trennt lokal vollständig vorbereitete Arbeit von Schritten, die ers
 - [x] deterministischen 80-Fälle-Qualitätsbericht erzeugen
 - [ ] Testcontainers-Suite mit Docker beziehungsweise in GitHub Actions ausführen
 - [ ] XLSX-Download zusätzlich in Excel oder LibreOffice öffnen
-- [ ] Screenshots und Demo-Aufnahme aktualisieren
+- [x] Screenshots für Quellenpassage, Konflikt und IAM-Finding aktualisieren
+- [x] kurze animierte Tour im README ergänzen
+- [x] 90-Sekunden-Aufnahme in 1440 × 900 mit WebVTT-Untertiteln erstellen
 - [x] Versionsnummern auf `0.2.0` vereinheitlichen
 - [x] Arbeitsbaum sauber committen
 

@@ -1,0 +1,53 @@
+name: GitHub Release
+
+on:
+  push:
+    tags: ["v*.*.*"]
+
+permissions:
+  contents: write
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  verify:
+    name: Release-Kandidat vollständig prüfen
+    uses: ./.github/workflows/ci.yml
+
+  release:
+    name: Versionierte Demo veröffentlichen
+    needs: verify
+    runs-on: ubuntu-latest
+    steps:
+      - name: Repository und Tags auschecken
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Release-Vertrag prüfen
+        shell: bash
+        run: |
+          test "$(git cat-file -t "$GITHUB_REF_NAME")" = "tag"
+          test -f "docs/releases/${GITHUB_REF_NAME}.md"
+          test -f examples/output/EvidenceRFP-Synthetic-Evidence-Pack.xlsx
+          test -f docs/assets/evidencerfp-90s.webm
+          test -f docs/assets/evidencerfp-90s.vtt
+          test -f docs/assets/social-preview.png
+
+      - name: Release mit geprüften Demo-Artefakten erstellen
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          gh release create "$GITHUB_REF_NAME" \
+            --verify-tag \
+            --title "EvidenceRFP ${GITHUB_REF_NAME}" \
+            --notes-file "docs/releases/${GITHUB_REF_NAME}.md" \
+            "examples/output/EvidenceRFP-Synthetic-Evidence-Pack.xlsx#Synthetisches Evidence Pack" \
+            "docs/assets/evidencerfp-90s.webm#90-Sekunden-Demo" \
+            "docs/assets/evidencerfp-90s.vtt#Deutsche Untertitel" \
+            "docs/assets/evidence-conflict.png#Screenshot Quellenkonflikt" \
+            "docs/assets/evidence-finding.png#Screenshot IAM-Finding" \
+            "docs/assets/social-preview.png#Social Preview"

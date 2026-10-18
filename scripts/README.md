@@ -7,7 +7,7 @@ Die versionierten Dateien unter `examples/source/`, `examples/rfp-questions.json
 
 Der IAM-Snapshot bleibt als lesbare JSON-Datei unter `examples/identity-snapshot.json` erhalten und kann direkt hochgeladen werden; für ihn wird keine Binärkopie erzeugt.
 
-Generierte Dateien landen ausschließlich unter `examples/generated/`. Das Verzeichnis ist in `.gitignore` eingetragen und darf nicht committed werden.
+Generierte Eingabedateien landen ausschließlich unter `examples/generated/`. Das Verzeichnis ist in `.gitignore` eingetragen und darf nicht committed werden. Davon getrennt liegt unter `examples/output/` genau ein bewusst versioniertes, vollständig synthetisches Referenz-Evidence-Pack. Es dient Recruitern und Reviewern als direkt prüfbares Ergebnis und wird nicht als Eingabequelle verwendet.
 
 ## Aufruf
 
@@ -38,6 +38,6 @@ Nach der Erzeugung:
 4. Golden-Set-Evaluation starten und Recall@6 dokumentieren,
 5. sicherstellen, dass keine Datei echte Metadaten oder lokale Pfade enthält.
 
-## Warum keine Binärdateien im Repository?
+## Warum nur ein binäres Referenzergebnis?
 
-Lesbare Quellen lassen sich reviewen, vergleichen und sicher als synthetisch kennzeichnen. Generierte Binärdateien blähen die Git-Historie auf und erschweren die Prüfung ihrer Herkunft. Reproduzierbare Erzeugung hält beides getrennt.
+Lesbare Quellen lassen sich reviewen, vergleichen und sicher als synthetisch kennzeichnen. Wiederholt erzeugte Eingabefixtures würden die Git-Historie aufblähen und ihre Prüfung erschweren. Das kleine Referenz-Evidence-Pack ist die bewusst begrenzte Ausnahme: Es wurde über den realen Browserexport erzeugt, technisch gerendert und schreibgeschützt in Microsoft Excel geprüft.

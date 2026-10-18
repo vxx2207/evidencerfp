@@ -17,6 +17,7 @@ Alle nennenswerten Änderungen an EvidenceRFP werden in dieser Datei dokumentier
 - kompakter Techniknachweis in der Review-Oberfläche
 - aktuelle Konflikt-/IAM-Screenshots, animierte Kurztour und 90-Sekunden-Aufnahme mit WebVTT-Untertiteln
 - nativ in Excel geprüftes, synthetisches Beispiel-Evidence-Pack als direkt öffnbares Referenzergebnis
+- taggesteuerter GitHub-Release-Workflow mit Evidence Pack, Demo-Video, Untertiteln und Screenshots
 
 ### Geändert
 
@@ -24,6 +25,7 @@ Alle nennenswerten Änderungen an EvidenceRFP werden in dieser Datei dokumentier
 - Reviewänderung und append-only Audit-Ereignis werden atomar gespeichert; vollständiges Delete/Reinsert entfällt dort
 - Ergebnis, Review und Export verlangen den Zustand `COMPLETED`
 - Frontend und Backend verwenden einheitlich Version `0.2.0`
+- GitHub-CI wertet übersprungene Production-Integrationstests als Fehler
 
 ### Sicherheit
 

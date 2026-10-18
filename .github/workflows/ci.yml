@@ -1,6 +1,7 @@
 name: CI
 
 on:
+  workflow_call:
   push:
     branches: ["main"]
   pull_request:
@@ -38,6 +39,13 @@ jobs:
       - name: Backend testen
         run: ./mvnw --batch-mode --no-transfer-progress verify
 
+      - name: Ausführung der Production-Integrationstests erzwingen
+        shell: bash
+        run: |
+          report="target/surefire-reports/TEST-com.certaaccess.evidencerfp.evidence.PgVectorEvidenceRetrieverIntegrationTest.xml"
+          test -f "$report"
+          grep -Eq 'tests="12" errors="0" skipped="0" failures="0"' "$report"
+
       - name: Versionierten Qualitätsbericht hochladen
         if: always()
         uses: actions/upload-artifact@v4
@@ -47,6 +55,14 @@ jobs:
             backend/target/evaluation/golden-set-report.json
             backend/target/evaluation/golden-set-report.html
           if-no-files-found: error
+
+      - name: Testberichte bei Fehlern hochladen
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: evidence-rfp-test-reports
+          path: backend/target/surefire-reports/
+          if-no-files-found: warn
 
       - name: Optionale KI-Adapter kompilieren
         run: |

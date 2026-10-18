@@ -14,6 +14,8 @@ Diese Liste trennt lokal vollständig vorbereitete Arbeit von Schritten, die ers
 - [ ] Testcontainers-Suite mit Docker beziehungsweise in GitHub Actions ausführen
 - [x] XLSX-Download schreibgeschützt in Microsoft Excel 16.0 öffnen und Struktur/Stile prüfen
 - [x] geprüftes synthetisches Beispiel-Evidence-Pack im Repository bereitstellen
+- [x] CI so konfigurieren, dass übersprungene Testcontainers-Tests den GitHub-Lauf fehlschlagen lassen
+- [x] taggesteuerten GitHub-Release mit Demo-Artefakten vorbereiten
 - [x] Screenshots für Quellenpassage, Konflikt und IAM-Finding aktualisieren
 - [x] kurze animierte Tour im README ergänzen
 - [x] 90-Sekunden-Aufnahme in 1440 × 900 mit WebVTT-Untertiteln erstellen
@@ -27,9 +29,8 @@ Diese Liste trennt lokal vollständig vorbereitete Arbeit von Schritten, die ers
 - [ ] GitHub Pages auf „GitHub Actions“ stellen und Deployment prüfen
 - [ ] echten Live-Demo-Link in README und Repository-Metadaten eintragen
 - [ ] Badge-URLs auf den tatsächlichen Owner-/Repository-Pfad umstellen
-- [ ] Changelog-Link `OWNER/evidence-rfp` ersetzen
 - [ ] `main` und annotierten Tag `v0.2.0` pushen
-- [ ] GitHub Release mit Demo-Link, Screenshots und synthetischem Beispiel-Evidence-Pack veröffentlichen
+- [ ] automatisch erzeugtes GitHub Release mit Demo-Artefakten prüfen
 
 ## Persönliches Portfolio
 

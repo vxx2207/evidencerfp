@@ -155,6 +155,7 @@ class PgVectorEvidenceRetrieverIntegrationTest {
         int answerable = 0;
         int hits = 0;
         double reciprocalRank = 0;
+        List<String> misses = new ArrayList<>();
         for (HybridCase item : cases) {
             if (!item.answerable()) continue;
             answerable++;
@@ -163,6 +164,8 @@ class PgVectorEvidenceRetrieverIntegrationTest {
             if (rank > 0) {
                 hits++;
                 reciprocalRank += 1.0 / rank;
+            } else {
+                misses.add(item.id() + ": " + item.question());
             }
         }
         boolean denseSeen = results.values().stream().flatMap(result -> result.matches().stream())
@@ -171,7 +174,9 @@ class PgVectorEvidenceRetrieverIntegrationTest {
                 .anyMatch(match -> match.provenance().channels().contains(RetrievalChannel.FULL_TEXT));
 
         assertThat(cases).hasSizeGreaterThanOrEqualTo(80);
-        assertThat((double) hits / answerable).isGreaterThanOrEqualTo(0.95);
+        assertThat((double) hits / answerable)
+                .as("Recall@6; nicht gefundene Fälle: %s", misses)
+                .isGreaterThanOrEqualTo(0.95);
         assertThat(reciprocalRank / answerable).isGreaterThanOrEqualTo(0.85);
         assertThat(denseSeen).isTrue();
         assertThat(fullTextSeen).isTrue();

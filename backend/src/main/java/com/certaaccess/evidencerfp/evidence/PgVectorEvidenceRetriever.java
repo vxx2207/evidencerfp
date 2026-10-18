@@ -72,9 +72,9 @@ public class PgVectorEvidenceRetriever implements EvidenceRetriever {
         // Provideraufrufe laufen bewusst vor allen Datenbank-Schreibvorgängen: Kein Netzwerk-
         // oder Modell-Request hält eine offene DB-Transaktion.
         List<float[]> chunkEmbeddings = embedBatches(
-                availableChunks.stream().map(EvidenceChunk::content).toList());
+                availableChunks.stream().map(this::searchableChunkText).toList());
         List<float[]> queryEmbeddings = embedBatches(
-                questions.stream().map(RfpQuestion::question).toList());
+                questions.stream().map(this::searchableQuestionText).toList());
         UUID sessionId = UUID.randomUUID();
         try {
             jdbc.sql("DELETE FROM evidence_retrieval_chunk WHERE expires_at < now()").update();
@@ -139,15 +139,23 @@ public class PgVectorEvidenceRetriever implements EvidenceRetriever {
                     WHERE session_id = :sessionId
                     ORDER BY embedding <=> CAST(:queryEmbedding AS vector), chunk_id
                     LIMIT :candidateLimit
+                ), query_lexemes AS (
+                    SELECT tsvector_to_array(to_tsvector('german', :queryText)) AS lexemes
                 ), query AS (
-                    SELECT websearch_to_tsquery('german', :queryText) AS terms
+                    SELECT CASE
+                             WHEN cardinality(lexemes) = 0 THEN NULL::tsquery
+                             ELSE to_tsquery('german', array_to_string(lexemes, ' | '))
+                           END AS terms
+                    FROM query_lexemes
                 ), full_text_candidates AS MATERIALIZED (
                     SELECT chunk_id,
                            row_number() OVER (
                                ORDER BY ts_rank_cd(content_tsv, query.terms) DESC, chunk_id)::int
                                AS full_text_rank
                     FROM evidence_retrieval_chunk, query
-                    WHERE session_id = :sessionId AND content_tsv @@ query.terms
+                    WHERE session_id = :sessionId
+                      AND query.terms IS NOT NULL
+                      AND content_tsv @@ query.terms
                     ORDER BY ts_rank_cd(content_tsv, query.terms) DESC, chunk_id
                     LIMIT :candidateLimit
                 ), fused AS (
@@ -171,7 +179,7 @@ public class PgVectorEvidenceRetriever implements EvidenceRetriever {
                 """)
                 .param("sessionId", sessionId)
                 .param("queryEmbedding", vectorLiteral(queryEmbedding))
-                .param("queryText", question.question())
+                .param("queryText", searchableQuestionText(question))
                 .param("candidateLimit", CANDIDATE_LIMIT)
                 .param("rrfK", RRF_K)
                 .param("resultLimit", resultLimit)
@@ -192,6 +200,15 @@ public class PgVectorEvidenceRetriever implements EvidenceRetriever {
                             EvidenceChunkIdentity.sha256(chunk.content())));
                 })
                 .list();
+    }
+
+    private String searchableChunkText(EvidenceChunk chunk) {
+        return chunk.locator() + "\n" + chunk.content();
+    }
+
+    private String searchableQuestionText(RfpQuestion question) {
+        if (question.category() == null || question.category().isBlank()) return question.question();
+        return question.category() + "\n" + question.question();
     }
 
     private void validateEmbedding(float[] values) {

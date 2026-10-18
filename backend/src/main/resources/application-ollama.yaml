@@ -10,7 +10,12 @@ spring:
         options:
           model: ${OLLAMA_EMBEDDING_MODEL:bge-m3}
 
+server:
+  address: ${SERVER_ADDRESS:127.0.0.1}
+
 evidence-rfp:
   ai:
     provider: ollama
     enabled: true
+    chat-model: ${OLLAMA_CHAT_MODEL:llama3.1:8b}
+    embedding-model: ${OLLAMA_EMBEDDING_MODEL:bge-m3}

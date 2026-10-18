@@ -49,9 +49,32 @@ describe('ApiAnalysisGateway', () => {
     expect(result.documents[0].sections[0].content)
       .toContain('Kontext vor dem Beleg');
     expect(fetchMock).toHaveBeenCalledTimes(5);
+    expect(fetchMock.mock.calls[0][1]).toEqual(expect.objectContaining({
+      headers: expect.objectContaining({ 'Idempotency-Key': expect.stringMatching(/^evidencerfp-/) }),
+    }));
     expect(onProgress).toHaveBeenLastCalledWith(expect.objectContaining({
       status: 'COMPLETED', percent: 100,
     }));
+  });
+
+  it('sendet die Fragenrevision als If-Match-Precondition', async () => {
+    const fetchMock = vi.fn().mockResolvedValue(jsonResponse({
+      id: 'RFP-001', question: 'Frage', answer: 'Geprüft', answerStatus: 'SUPPORTED',
+      reviewStatus: 'APPROVED', revision: 8, citations: [], findings: [],
+    }));
+    vi.stubGlobal('fetch', fetchMock);
+    const gateway = new ApiAnalysisGateway('http://localhost:8080');
+
+    const question = await gateway.updateQuestion('analysis-1', 'RFP-001', {
+      answer: 'Geprüft',
+      expectedRevision: 7,
+    });
+
+    expect(question.revision).toBe(8);
+    expect(fetchMock).toHaveBeenCalledWith(
+      'http://localhost:8080/api/v1/analyses/analysis-1/questions/RFP-001',
+      expect.objectContaining({ headers: expect.objectContaining({ 'If-Match': '"7"' }) }),
+    );
   });
 
   it('zeigt den sicheren Problem-Detail-Text der API', async () => {

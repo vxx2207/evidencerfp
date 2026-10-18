@@ -2,85 +2,107 @@
 
 ## Zielbild
 
-EvidenceRFP ist ein modularer Monolith. Fachlogik, Sicherheitsgrenzen und Datenhaltung bleiben im Spring-Boot-Backend; das React-Frontend kennt ausschließlich das gemeinsame Gateway-Datenmodell. Das erleichtert eine eindrucksvolle öffentliche Demo, ohne Upload- oder KI-Funktionen ins Internet zu stellen.
+EvidenceRFP 0.2 ist ein modularer Monolith. Fachlogik, Sicherheitsgrenzen, Jobsteuerung und
+Datenhaltung liegen im Spring-Boot-Backend. Das React-Frontend verwendet einen stabilen,
+versionierten API-Vertrag; die öffentliche GitHub-Pages-Demo ersetzt ausschließlich das Gateway
+durch synthetische Fixtures.
 
 ```mermaid
 flowchart TB
     subgraph Browser
-        UI[Review UI]
+        UI[Review UI + Techniknachweis]
         GW{AnalysisGateway}
         UI --> GW
         GW --> DEMO[DemoAnalysisGateway]
         GW --> LIVE[ApiAnalysisGateway]
+        DEMO --> FIX[synthetische Fixtures]
     end
 
-    DEMO --> JSON[statische synthetische Fixtures]
-    DEMO --> BROWSERXLSX[XLSX im Browser]
-    LIVE --> REST[REST API]
-
-    subgraph Backend
-        REST --> APP[Analysis Application Service]
-        APP --> ING[Import & Datei-Validierung]
-        APP --> SEARCH[Retrieval]
-        APP --> CTRL[IAM Controls]
-        APP --> REVIEW[Review & Freigabe]
-        APP --> EXPORT[XLSX Export]
-        SEARCH --> CITE[Zitations-Validator]
-        SEARCH --> AI[Chat-/Embedding-Provider]
-    end
-
-    ING --> PG[(PostgreSQL + pgvector)]
-    SEARCH --> PG
-    REVIEW --> PG
-    AI --> OLLAMA[Ollama lokal]
+    LIVE --> API[REST API /api/v1]
+    API --> STORE[Upload-Speicher]
+    API --> JOB[(analysis_job + Lease)]
+    JOB --> WORKER[Worker + Recovery]
+    WORKER --> PARSE[gehärtete Parser]
+    PARSE --> CHUNK[450/60 Token Chunking]
+    CHUNK --> DENSE[pgvector Top 12]
+    CHUNK --> FTS[deutsche FTS Top 12]
+    DENSE --> RRF[RRF k=60 / Top 6]
+    FTS --> RRF
+    RRF --> GEN[strukturierte Claims]
+    GEN --> VERIFY[Claim- und Zitationsprüfung]
+    WORKER --> IAM[3 deterministische IAM-Regeln]
+    VERIFY --> PG[(PostgreSQL + pgvector)]
+    IAM --> PG
+    PG --> REVIEW[Revision + append-only Audit]
+    REVIEW --> XLSX[XLSX Evidence Pack]
 ```
 
-## Module und Verantwortlichkeiten
+## Persistenter Jobablauf
 
-| Modul | Verantwortlichkeit | Nicht verantwortlich für |
-|---|---|---|
-| Import | Dateiformat, MIME/Magic Bytes, Größenlimit, Parserauswahl | Fachliche Bewertung |
-| Evidence | Normalisierung, Chunking, Metadaten, Retrieval | Freigabe von Antworten |
-| Analysis | Orchestrierung, strukturierte Antwortentwürfe | Autoritative Security-Entscheidungen |
-| Citation | Chunk-Zugehörigkeit und wörtliche Fundstelle prüfen | Neue Belege erzeugen |
-| IAM Controls | Drei deterministische Regeln auf Snapshot-Daten | Änderungen am IdP |
-| Review | Editieren, Konfliktsperre, Human-in-the-loop-Freigabe und append-only Ereignisprotokoll | Automatische Genehmigung bei Konflikten |
-| Export | Formula-Injection-sicheres XLSX Evidence Pack | Originaldateien verändern |
+1. Der Request wird gegen Anzahl, Einzel- und Gesamtgröße, Endung, MIME-Type und Magic Bytes
+   geprüft. Ein optionaler `Idempotency-Key` wird zusammen mit dem Request-Hash registriert.
+2. Akzeptierte Dateien erhalten servergenerierte Namen und werden außerhalb des Webrequests
+   gespeichert. Analyse, Job und Uploadmetadaten entstehen in einer Transaktion.
+3. Worker sperren einen Kandidaten mit `FOR UPDATE SKIP LOCKED`, übernehmen ihn atomar und
+   erhalten eine Lease von 30 Sekunden. Ein Heartbeat verlängert sie alle zehn Sekunden.
+4. Persistierte Phasen sind `QUEUED`, `PARSING`, `INDEXING`, `ANSWERING`, `IAM_CHECKS`,
+   `PERSISTING`, `COMPLETED`, `FAILED` und `CANCELLED`.
+5. Nach einem Prozessabbruch wird der gesamte Lauf idempotent neu begonnen. Nach dem zweiten
+   abgelaufenen Versuch endet er mit `JOB_RETRIES_EXHAUSTED`.
+6. Nur der aktuelle Lease-Besitzer kann per Compare-and-Set aus `PROCESSING` finalisieren.
+   DELETE bricht Job und Analyse atomar ab; ein alter Worker kann die Analyse nicht neu anlegen.
+7. Rohdateien werden nach Erfolg, Fehler oder Abbruch entfernt. Teilergebnisse eines Versuchs
+   werden nicht als fertiges Ergebnis verwendet.
 
-## Datenfluss
+## Dokument- und Retrieval-Pipeline
 
-1. Ein Upload wird vor dem Parsen anhand Erweiterung, deklariertem MIME-Type, Magic Bytes und Größenlimit geprüft.
-2. Nach synchroner Upload-Validierung erhält der Client eine Analyse-ID; die Verarbeitung läuft in einer begrenzten lokalen Worker-Queue. Der Browser verfolgt den Lauf über die Status-Ressource.
-3. Text wird normalisiert, mit Dokument- und Abschnittsmetadaten in Chunks zerlegt und einmal pro Analyse eingebettet. Im Offline-Production-Profil entstehen deterministische Hash-Vektoren; mit `ollama` liefert `bge-m3` semantische 1.024-dimensionale Embeddings.
-4. Je Frage werden aus demselben kurzlebigen Index höchstens sechs relevante Chunks abgerufen und als nicht vertrauenswürdiger Kontext an das Modell übergeben.
-5. Das Modell liefert ein strukturiertes Ergebnis. Der Server akzeptiert nur bekannte Statuswerte und Zitationen auf abgerufene Chunks.
-6. Eine Zitation ist nur gültig, wenn der normalisierte Zitatausschnitt im referenzierten Chunk enthalten ist.
-7. Der IAM-Snapshot wird getrennt davon durch deterministische Regeln verarbeitet.
-8. Konflikte, veraltete Quellen und fehlende Belege werden modellunabhängig als Findings gespeichert und beeinflussen den Freigabestatus.
-9. Vollständige extrahierte Quellenpassagen werden unabhängig vom kurzlebigen Retrieval-Index für die menschliche Nachprüfung gespeichert.
-10. Jede Bearbeitung oder Reviewentscheidung erzeugt ein append-only Ereignis mit Provenienz, Vorher-/Nachher-Werten und Zeitstempel.
-11. Der Export wird erst freigegeben, wenn jede Frage bewusst freigegeben oder als Klärung blockiert wurde.
+PDF ist auf 200 Seiten begrenzt. Pro Datei gelten außerdem eine Million extrahierte Zeichen und
+2.000 Chunks. OOXML darf dekomprimiert höchstens 100 MB, 2.000 ZIP-Einträge und ein Verhältnis
+von 100:1 erreichen. Parser laufen höchstens 20 Sekunden. DOCX/XLSX werden über ihre
+verpflichtenden OOXML-Bestandteile erkannt; Makros, OLE, externe Beziehungen, Verschlüsselung,
+doppelte Einträge und Pfad-Traversal führen zu einer kontrollierten Ablehnung.
 
-## Frontend-Modi
+Chunks orientieren sich an Abschnitten und Sätzen, sind höchstens 450 Tokens lang und überlappen
+um 60 Tokens. Ihre UUID wird deterministisch aus Dokumenthash, Fundstelle und normalisiertem
+Inhalt abgeleitet. Embeddings entstehen in Batches von 32 und werden außerhalb lang laufender
+Datenbanktransaktionen berechnet.
 
-`DemoAnalysisGateway` lädt vorberechnete Ergebnisse, hält lokale Reviewänderungen ausschließlich im Browser und kann sie auf den definierten Ausgangszustand zurücksetzen. Es besitzt keine Upload-Funktion und sendet keine Daten an einen Server. Das synthetische XLSX Evidence Pack wird ebenfalls im Browser erzeugt. `ApiAnalysisGateway` spricht mit der lokalen REST-API. Beide implementieren dasselbe Interface, sodass UI und Demo-Story identisch bleiben.
+Im Production-Profil liefert pgvector zwölf Dense-Kandidaten und PostgreSQL mit deutscher
+Sprachkonfiguration zwölf lexikalische Kandidaten. Reciprocal Rank Fusion mit `k = 60` erzeugt
+die finalen sechs Chunks. Gespeichert werden Kanal, Einzelrang, Fusionsscore, Chunk-Hash,
+Retrievalversion und Embeddingmodell. Das sind Provenienzdaten, keine KI-Konfidenz.
 
-Die Auswahl erfolgt beim Build über `VITE_APP_MODE=demo|api`. Für GitHub Pages wird ausschließlich `demo` verwendet.
+Das Modell liefert einzelne Claims mit Chunk-Referenzen. Der Server prüft erlaubte Chunk-ID,
+wörtliches Zitat, Zahlen, zentrale Entitäten und Negationen. Vollständig belegte Claims ergeben
+`SUPPORTED`, eine belegte Teilmenge `PARTIAL` und kein belegter Claim `NOT_FOUND`. Provider- oder
+Schemafehler beenden die Analyse technisch und werden nie zu `NOT_FOUND` umgedeutet.
 
-## Entscheidungsprotokoll
+## Konsistenz und API-Vertrag
 
-- **Modularer Monolith statt Microservices:** weniger Betriebsaufwand, aber klare Fachgrenzen.
-- **PostgreSQL plus pgvector:** Transaktions- und Vektordaten bleiben konsistent in einem System.
-- **Profilabhängige Embeddings:** Offline-Hashing hält den Stack ohne Modell lauffähig; `production,ollama` ersetzt es über denselben Port durch `bge-m3`.
-- **Deterministische IAM-Regeln:** Findings sind reproduzierbar und nicht vom Sprachmodell abhängig.
-- **Lokales Ollama als Default:** keine Dokumentübertragung an einen Cloud-Provider.
-- **Begrenzter lokaler Job-Runner:** Der POST-Request validiert und puffert Uploads, gibt eine ID zurück und übergibt die Verarbeitung an einen kleinen Thread-Pool. Status-Polling hält lange Ollama-Läufe aus dem Request-Lifecycle heraus.
-- **Keine numerische KI-Konfidenz:** Status und überprüfbare Evidenz sind erklärbarer als scheinpräzise Scores.
+- Vollständige Analyse- und Exportansichten werden als `REPEATABLE_READ`-Snapshot geladen.
+- Jede Frage besitzt eine Revision. PATCH verlangt `If-Match`; ohne Header folgt 428, bei einer
+  alten Revision 412 `EDIT_CONFLICT`.
+- Frage und Audit-Ereignis mit Vorher-/Nachher-Werten und Provenienz werden in derselben
+  Transaktion gespeichert.
+- `/result`, Review und Export sind vor `COMPLETED` mit 409 `ANALYSIS_NOT_READY` gesperrt.
+- RFC-7807-Antworten enthalten sichere Fehlercodes, aber keine Parser- oder Providerdetails.
+- Der Vertrag liegt unter [`openapi/evidence-rfp-v1.yaml`](openapi/evidence-rfp-v1.yaml); der
+  TypeScript-Client wird in CI daraus neu generiert und auf Drift geprüft.
 
-Im `production`-Profil werden Analysen, Fragen, Review-Status, Findings, Dokumentmetadaten, vollständige Quellenpassagen und Reviewereignisse relational in PostgreSQL gespeichert. Retrieval-Chunks werden einmal pro Analyse in einen isolierten pgvector-Arbeitsindex geschrieben, für alle Fragen wiederverwendet und anschließend entfernt. Die Reviewpassagen bleiben davon getrennt erhalten, damit Zitationen nach Abschluss weiterhin auf den vollständigen Kontext zeigen. Das Demo-Profil verwendet absichtlich ein In-Memory-Repository.
+## Betriebsnachweis
 
-## Laufzeitannahmen
+Micrometer misst Parser, Chunking, Embedding, Retrieval, Generierung, Verifikation und Export.
+Zähler erfassen Antwortstatus, verworfene Zitationen, Parserablehnungen und Fehlercodes; Gauges
+zeigen aktive Worker und Queue. Strukturierte Logs enthalten Korrelations-, Analyse-, Frage- und
+Phasenkennung, aber keine Dokumenttexte. Alle Backendprofile binden standardmäßig ausschließlich
+an `127.0.0.1`.
 
-- Eine Instanz, eine lokale Datenbank, keine Mandantentrennung.
-- Analyse-Daten gelten als temporär und können über den DELETE-Endpunkt entfernt werden.
-- Alle Beispiele sind synthetisch. Für reale Daten fehlen im MVP unter anderem Authentifizierung, Autorisierung, Mandantenisolation und eine belastbare Aufbewahrungsrichtlinie.
+## Profile und Grenzen
+
+`demo` verwendet ein In-Memory-Repository und deterministische Fixtures. `production` aktiviert
+PostgreSQL, Flyway und pgvector. `ollama` ergänzt lokal `llama3.1:8b` und `bge-m3`; `openai` ist
+ein bewusster Cloud-Opt-in. Authentifizierung, Mandantenisolation, OCR, echter IdP und CRM bleiben
+außerhalb von 0.2. Alle öffentlich sichtbaren Daten sind synthetisch.
+
+Die Entscheidungen sind zusätzlich in [ADR 0001](adr/0001-durable-analysis-jobs.md) und
+[ADR 0002](adr/0002-hybrid-retrieval.md) festgehalten.

@@ -29,6 +29,9 @@ describe('dynamische Analysedaten', () => {
     expect(screen.getByText('Alle Antworten sind entschieden.')).toBeInTheDocument();
     expect(screen.getByText('1 kritisch · 0 hoch · 0 mittel')).toBeInTheDocument();
     expect(screen.getByText('2 Passagen')).toBeInTheDocument();
+    expect(screen.getByText('Wie dieses Ergebnis abgesichert wurde')).toBeInTheDocument();
+    expect(screen.getByText('Pipelinephase')).toBeInTheDocument();
+    expect(screen.getByText('Dense + FTS → RRF')).toBeInTheDocument();
   });
 
   it('verwendet Kunde, Analysezeit und Finding-Mengen statt Demo-Konstanten', () => {

@@ -44,4 +44,55 @@ class CitationVerifierTest {
 
         assertThat(verifier.verify(List.of(citation), List.of(allowed))).isFalse();
     }
+
+    @Test
+    void acceptsClaimWhenNumberEntityAndPolarityAreSupported() {
+        UUID id = UUID.randomUUID();
+        EvidenceChunk chunk = new EvidenceChunk(id, "mfa.pdf", "application/pdf", "Seite 4",
+                "Ab Version 4.2 verhindert die Plattform eine Sitzung, wenn ausschließlich TOTP verfügbar ist.",
+                null);
+        Citation citation = new Citation(id, "mfa.pdf", "Seite 4",
+                "Version 4.2 verhindert die Plattform eine Sitzung, wenn ausschließlich TOTP verfügbar ist");
+
+        assertThat(verifier.verifyClaim(
+                "Seit Version 4.2 wird eine nur mit TOTP geschützte Sitzung verhindert.",
+                List.of(citation), List.of(chunk))).isTrue();
+    }
+
+    @Test
+    void rejectsClaimThatAddsUnsupportedNumber() {
+        UUID id = UUID.randomUUID();
+        EvidenceChunk chunk = new EvidenceChunk(id, "pam.pdf", "application/pdf", "Seite 2",
+                "Eine genehmigte Aktivierung gilt standardmäßig 60 Minuten.", null);
+        Citation citation = new Citation(id, "pam.pdf", "Seite 2",
+                "Eine genehmigte Aktivierung gilt standardmäßig 60 Minuten");
+
+        assertThat(verifier.verifyClaim("Eine Aktivierung gilt 120 Minuten.",
+                List.of(citation), List.of(chunk))).isFalse();
+    }
+
+    @Test
+    void rejectsClaimThatInvertsNegation() {
+        UUID id = UUID.randomUUID();
+        EvidenceChunk chunk = new EvidenceChunk(id, "auth.pdf", "application/pdf", "Seite 1",
+                "SMS gilt nicht als phishing-resistent.", null);
+        Citation citation = new Citation(id, "auth.pdf", "Seite 1",
+                "SMS gilt nicht als phishing-resistent");
+
+        assertThat(verifier.verifyClaim("SMS gilt als phishing-resistent.",
+                List.of(citation), List.of(chunk))).isFalse();
+    }
+
+    @Test
+    void rejectsClaimThatAddsUnsupportedCamelCaseEntity() {
+        UUID id = UUID.randomUUID();
+        EvidenceChunk chunk = new EvidenceChunk(id, "auth.pdf", "application/pdf", "Seite 2",
+                "Die Plattform unterstützt FIDO2 für privilegierte Konten.", null);
+        Citation citation = new Citation(id, "auth.pdf", "Seite 2",
+                "Die Plattform unterstützt FIDO2 für privilegierte Konten");
+
+        assertThat(verifier.verifyClaim(
+                "CertaAccess unterstützt FIDO2 für privilegierte Konten.",
+                List.of(citation), List.of(chunk))).isFalse();
+    }
 }

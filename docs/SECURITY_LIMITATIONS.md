@@ -11,9 +11,9 @@
 
 ## Upload-Grenzen
 
-Unterstützt werden XLSX für Fragen sowie textbasierte PDF- und DOCX-Dateien für Evidenz. Zulässige Endung, MIME-Type und Magic Bytes müssen übereinstimmen. Dateianzahl, Einzelgröße und Gesamtgröße sind begrenzt. Dateinamen werden nie als Speicherpfad verwendet. Ein eigenes Dekompressions- und Parserzeitbudget ist im MVP noch nicht implementiert.
+Unterstützt werden XLSX für Fragen sowie textbasierte PDF- und DOCX-Dateien für Evidenz. Zulässige Endung, MIME-Type und Magic Bytes müssen übereinstimmen. Dateianzahl, Einzelgröße und Gesamtgröße sind begrenzt. Dateinamen werden nie als Speicherpfad verwendet. PDF ist auf 200 Seiten begrenzt; pro Datei gelten eine Million extrahierte Zeichen und 2.000 Chunks. OOXML wird auf 100 MB dekomprimierten Inhalt, ein Verhältnis von 100:1 und 2.000 Einträge begrenzt. Makros, OLE-Pakete, externe Beziehungen, Verschlüsselung, doppelte ZIP-Einträge und Pfad-Traversal werden abgelehnt. Jeder Parserlauf besitzt ein 20-Sekunden-Budget.
 
-Nach der Validierung werden Uploads für den lokalen Hintergrundjob im Arbeitsspeicher gepuffert. Worker- und Queue-Anzahl sind begrenzt, dennoch ist dieser Mechanismus nur für die lokale Einzelnutzer-Demo ausgelegt. Ein produktiver Dienst benötigt externes Job- und Objektspeicher-Management, Quoten und belastbare Backpressure.
+Nach der Validierung werden Uploads bis zum terminalen Jobzustand in einem geschützten lokalen Verzeichnis unter servergenerierten Namen gehalten. Persistente Jobs besitzen Lease, Heartbeat, Recovery und maximal zwei Versuche; Erfolg, Fehler und Abbruch räumen die Rohdateien auf. Worker- und Queue-Anzahl sind begrenzt, dennoch ist dieser Mechanismus nur für die lokale Einzelnutzer-Demo ausgelegt. Ein produktiver Dienst benötigt verschlüsselten Objekt-/Artefaktspeicher, Quoten und belastbare Backpressure.
 
 Die konkrete Konfiguration des Backends ist maßgeblich; öffentlich dokumentierte Limits dürfen nicht großzügiger sein als die tatsächlich erzwungenen Werte.
 
@@ -37,7 +37,7 @@ Cloud-KI wird nur über das explizite Maven- und Spring-Profil `openai` genutzt.
 
 ## Interpretationsgrenzen
 
-`SUPPORTED` bedeutet: Der Entwurf besitzt eine technisch validierte Fundstelle im bereitgestellten Korpus. Es bedeutet nicht, dass die Quelle wahr, aktuell, vollständig oder rechtlich ausreichend ist. `PARTIAL` kennzeichnet unvollständige oder konflikthafte Evidenz. `NOT_FOUND` bedeutet, dass im abgerufenen Korpus kein ausreichend belegbarer Entwurf vorlag.
+`SUPPORTED` bedeutet: Alle ausgegebenen Claims besitzen technisch validierte Fundstellen im bereitgestellten Korpus. Dabei werden erlaubte Chunk-ID, exaktes Zitat, Zahlen, zentrale Entitäten und Negationen geprüft. Es bedeutet nicht, dass die Quelle wahr, aktuell, vollständig oder rechtlich ausreichend ist. `PARTIAL` kennzeichnet nur teilweise belegte oder konflikthafte Evidenz. `NOT_FOUND` bedeutet, dass im abgerufenen Korpus kein belegbarer Claim vorlag. Providerausfall und ungültige Modellausgabe sind technische Analysefehler und ausdrücklich kein `NOT_FOUND`.
 
 IAM-Findings sind reproduzierbare Prüfungen des bereitgestellten Snapshots, keine Echtzeit-Aussage über einen Tenant und kein Penetrationstest.
 

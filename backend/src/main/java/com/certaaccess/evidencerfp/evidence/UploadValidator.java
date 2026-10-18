@@ -1,11 +1,12 @@
 package com.certaaccess.evidencerfp.evidence;
 
 import org.springframework.stereotype.Component;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.io.IOException;
+import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
-import java.nio.file.Path;
 import java.util.List;
 import java.util.Locale;
 import java.util.Set;
@@ -22,9 +23,16 @@ public class UploadValidator {
     private static final Set<String> JSON_TYPES = Set.of("application/json", "application/octet-stream", "text/json");
 
     private final UploadValidationProperties properties;
+    private final OoxmlPackageValidator ooxmlValidator;
 
     public UploadValidator(UploadValidationProperties properties) {
+        this(properties, new OoxmlPackageValidator(DocumentProcessingProperties.secureDefaults()));
+    }
+
+    @Autowired
+    public UploadValidator(UploadValidationProperties properties, OoxmlPackageValidator ooxmlValidator) {
         this.properties = properties;
+        this.ooxmlValidator = ooxmlValidator;
     }
 
     public void validate(MultipartFile rfp, List<MultipartFile> evidence, MultipartFile iamSnapshot) {
@@ -36,23 +44,38 @@ public class UploadValidator {
             throw new InvalidUploadException("Es sind höchstens " + properties.maxEvidenceFiles()
                     + " Evidenzdokumente erlaubt.");
         }
+        long total = safeSize(rfp);
+        for (MultipartFile file : evidence) total = safeAdd(total, safeSize(file));
+        total = safeAdd(total, safeSize(iamSnapshot));
+        if (total > properties.maxTotalBytes()) {
+            throw new InvalidUploadException("Die Upload-Gesamtgröße überschreitet das Limit von "
+                    + properties.maxTotalBytes() + " Bytes.");
+        }
+
+        ooxmlValidator.validate(rfp, OoxmlPackageValidator.Kind.XLSX);
         for (MultipartFile file : evidence) {
             String extension = extension(file);
             switch (extension) {
                 case ".pdf" -> validateFile(file, extension, PDF_TYPES, Magic.PDF, "Evidenzdokument");
-                case ".docx" -> validateFile(file, extension, DOCX_TYPES, Magic.ZIP, "Evidenzdokument");
+                case ".docx" -> {
+                    validateFile(file, extension, DOCX_TYPES, Magic.ZIP, "Evidenzdokument");
+                    ooxmlValidator.validate(file, OoxmlPackageValidator.Kind.DOCX);
+                }
                 default -> throw new InvalidUploadException("Nur PDF- und DOCX-Evidenzdokumente sind erlaubt.");
             }
         }
         if (iamSnapshot != null && !iamSnapshot.isEmpty()) {
             validateFile(iamSnapshot, ".json", JSON_TYPES, Magic.JSON, "IAM-Snapshot");
         }
-        long total = rfp.getSize() + evidence.stream().mapToLong(MultipartFile::getSize).sum()
-                + (iamSnapshot == null ? 0L : iamSnapshot.getSize());
-        if (total > properties.maxTotalBytes()) {
-            throw new InvalidUploadException("Die Upload-Gesamtgröße überschreitet das Limit von "
-                    + properties.maxTotalBytes() + " Bytes.");
-        }
+    }
+
+    private long safeSize(MultipartFile file) {
+        return file == null ? 0 : Math.max(0, file.getSize());
+    }
+
+    private long safeAdd(long left, long right) {
+        if (Long.MAX_VALUE - left < right) return Long.MAX_VALUE;
+        return left + right;
     }
 
     private void validateFile(MultipartFile file, String expectedExtension, Set<String> allowedTypes,
@@ -73,8 +96,10 @@ public class UploadValidator {
             throw new InvalidUploadException(role + " hat einen unerlaubten MIME-Type: " + contentType);
         }
         try {
-            if (!magic.matches(file.getBytes())) {
-                throw new InvalidUploadException(role + " stimmt nicht mit der behaupteten Dateistruktur überein.");
+            try (InputStream input = file.getInputStream()) {
+                if (!magic.matches(input)) {
+                    throw new InvalidUploadException(role + " stimmt nicht mit der behaupteten Dateistruktur überein.");
+                }
             }
         } catch (IOException exception) {
             throw new InvalidUploadException(role + " konnte nicht gelesen werden.");
@@ -87,11 +112,10 @@ public class UploadValidator {
             throw new InvalidUploadException("Ein gültiger Dateiname ist erforderlich.");
         }
         String normalized = original.replace('\\', '/');
-        String leaf = Path.of(normalized).getFileName().toString();
-        if (!leaf.equals(normalized) || leaf.equals(".") || leaf.equals("..")) {
+        if (normalized.indexOf('/') >= 0 || normalized.equals(".") || normalized.equals("..")) {
             throw new InvalidUploadException("Pfadangaben im Dateinamen sind nicht erlaubt.");
         }
-        return leaf;
+        return normalized;
     }
 
     private String extension(MultipartFile file) {
@@ -102,24 +126,27 @@ public class UploadValidator {
 
     private enum Magic {
         PDF {
-            @Override boolean matches(byte[] bytes) {
-                return bytes.length >= 5 && new String(bytes, 0, 5, StandardCharsets.US_ASCII).equals("%PDF-");
+            @Override boolean matches(InputStream input) throws IOException {
+                byte[] bytes = input.readNBytes(5);
+                return bytes.length == 5 && new String(bytes, StandardCharsets.US_ASCII).equals("%PDF-");
             }
         },
         ZIP {
-            @Override boolean matches(byte[] bytes) {
+            @Override boolean matches(InputStream input) throws IOException {
+                byte[] bytes = input.readNBytes(4);
                 return bytes.length >= 4 && bytes[0] == 0x50 && bytes[1] == 0x4b
                         && (bytes[2] == 0x03 || bytes[2] == 0x05 || bytes[2] == 0x07)
                         && (bytes[3] == 0x04 || bytes[3] == 0x06 || bytes[3] == 0x08);
             }
         },
         JSON {
-            @Override boolean matches(byte[] bytes) {
+            @Override boolean matches(InputStream input) throws IOException {
+                byte[] bytes = input.readNBytes(4_096);
                 String value = new String(bytes, StandardCharsets.UTF_8).stripLeading();
                 return value.startsWith("{") || value.startsWith("[");
             }
         };
 
-        abstract boolean matches(byte[] bytes);
+        abstract boolean matches(InputStream input) throws IOException;
     }
 }

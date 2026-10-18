@@ -38,9 +38,19 @@ jobs:
       - name: Backend testen
         run: ./mvnw --batch-mode --no-transfer-progress verify
 
+      - name: Versionierten Qualitätsbericht hochladen
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: evidence-rfp-evaluation
+          path: |
+            backend/target/evaluation/golden-set-report.json
+            backend/target/evaluation/golden-set-report.html
+          if-no-files-found: error
+
       - name: Optionale KI-Adapter kompilieren
         run: |
-          ./mvnw --batch-mode --no-transfer-progress -Pollama -DskipTests compile
+          ./mvnw --batch-mode --no-transfer-progress -Pollama -Dtest=EmbeddingProviderSupportTest test
           ./mvnw --batch-mode --no-transfer-progress -Popenai -DskipTests compile
 
   frontend:
@@ -62,6 +72,14 @@ jobs:
 
       - name: Abhängigkeiten installieren
         run: npm ci
+
+      - name: Produktionsabhängigkeiten prüfen
+        run: npm audit --omit=dev --audit-level=high
+
+      - name: OpenAPI-Client reproduzierbar generieren
+        run: |
+          npm run generate:api
+          git diff --exit-code -- src/generated/api
 
       - name: Frontend testen
         run: npm test -- --passWithNoTests
@@ -91,6 +109,7 @@ jobs:
         run: |
           jq empty examples/identity-snapshot.json examples/golden-set.json examples/rfp-questions.json
           test "$(jq '.questions | length' examples/golden-set.json)" -eq 20
+          test "$(jq '[.questions[] | 1 + (.paraphrases | length)] | add' examples/golden-set.json)" -eq 80
           test "$(jq '.questions | length' examples/rfp-questions.json)" -eq 24
           test "$(find examples/source -maxdepth 1 -type f -name '*.md' ! -name 'rfp-fragen.md' | wc -l)" -eq 5
           test "$(grep -Ec '^\| RFP-[0-9]{3} \|' examples/source/rfp-fragen.md)" -eq 24

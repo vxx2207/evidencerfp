@@ -230,6 +230,11 @@ export function Workbench({
                   <div className="retrieval-top"><span className="source-index">{index + 1}</span><span className="file-kind"><FileText size={12} /> {document?.type}</span><span>Seite {citation.page}</span></div>
                   <strong>{document?.title}</strong>
                   <p>„{citation.quote}“</p>
+                  {citation.retrieval && <small className="retrieval-provenance">
+                    {citation.retrieval.methods.join(' + ')}
+                    {citation.retrieval.denseRank ? ` · Dense #${citation.retrieval.denseRank}` : ''}
+                    {citation.retrieval.fullTextRank ? ` · FTS #${citation.retrieval.fullTextRank}` : ''}
+                  </small>}
                   <div><span><FileCheck2 size={13} /> {citation.relevance}</span><ArrowRight size={14} /></div>
                 </button>
               );

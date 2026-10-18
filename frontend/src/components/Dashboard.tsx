@@ -20,6 +20,7 @@ import {
 import type { Analysis, AppView, Question } from '../types';
 import { isReviewDecided, isReviewOpen } from '../review';
 import { AnswerBadge } from './StatusBadge';
+import { TechnicalProof } from './TechnicalProof';
 
 function formatDate(value: string) {
   return new Intl.DateTimeFormat('de-DE', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' }).format(new Date(value));
@@ -112,6 +113,8 @@ export function Dashboard({ analysis, onNavigate, onOpenQuestion, onImport, onSt
           <p>12.000 € Einführung plus 900 € Betrieb pro Monat ergeben 22.800 € Kosten im ersten Jahr. Bei 1.725 € Monatsnetto liegt die Amortisation bei 6,96 Monaten; der Beispiel-ROI beträgt <strong>(31.500 € − 22.800 €) ÷ 22.800 € = 38,2 %</strong>.</p>
         </div>
       </details>
+
+      <TechnicalProof analysis={analysis} />
 
       <section className="dashboard-grid">
         <article className="panel priority-panel">

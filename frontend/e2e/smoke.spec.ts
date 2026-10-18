@@ -3,7 +3,7 @@ import { expect, test } from '@playwright/test';
 test('durchläuft den zentralen EvidenceRFP-Demo-Pfad', async ({ page }) => {
   await page.goto('/');
   await expect(page.getByRole('heading', { name: /Von 24 Fragen zu/i })).toBeVisible();
-  await expect(page.getByText('Synthetische Demo')).toBeVisible();
+  await expect(page.getByText('Synthetische Demo', { exact: true })).toBeVisible();
 
   await page.getByRole('button', { name: '60-Sekunden-Demo starten' }).click();
   await expect(page).toHaveURL(/#tour\/source$/);
@@ -25,7 +25,7 @@ test('durchläuft den zentralen EvidenceRFP-Demo-Pfad', async ({ page }) => {
 
   await tour.getByRole('button', { name: 'Review abschließen' }).click();
   await expect(page).toHaveURL(/#tour\/export$/);
-  await expect(page.getByText('IAM-004')).toBeVisible();
+  await expect(page.getByText('Human Gate · IAM-004', { exact: true })).toBeVisible();
   await page.getByRole('button', { name: 'Freigeben' }).click();
 
   await expect(page.getByRole('heading', { name: 'Review abgeschlossen.' })).toBeVisible();

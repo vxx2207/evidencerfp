@@ -3,6 +3,7 @@ package com.certaaccess.evidencerfp.analysis.application;
 import com.certaaccess.evidencerfp.analysis.domain.Analysis;
 import com.certaaccess.evidencerfp.analysis.domain.Citation;
 import com.certaaccess.evidencerfp.analysis.domain.Finding;
+import com.certaaccess.evidencerfp.analysis.domain.FindingType;
 import com.certaaccess.evidencerfp.analysis.domain.QuestionResult;
 import com.certaaccess.evidencerfp.analysis.domain.ReviewEvent;
 import org.apache.poi.ss.usermodel.CellStyle;
@@ -18,10 +19,12 @@ import org.springframework.stereotype.Component;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.util.List;
+import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
 @Component
 public class AnalysisExporter {
+    private static final Pattern FORMULA_PREFIX = Pattern.compile("(?s)^\\s*[=+\\-@].*");
 
     public byte[] toXlsx(Analysis analysis) {
         synchronized (analysis) {
@@ -57,12 +60,13 @@ public class AnalysisExporter {
     }
 
     private void writeFindings(Workbook workbook, CellStyle header, List<Finding> findings) {
-        Sheet sheet = workbook.createSheet("Findings");
+        Sheet sheet = workbook.createSheet("IAM Findings");
         String[] columns = {"Schweregrad", "Typ", "Regel", "Titel", "Beschreibung", "Betroffenes Objekt",
                 "Empfehlung", "Blockiert Freigabe"};
         writeHeader(sheet, header, columns);
         int rowIndex = 1;
         for (Finding finding : findings) {
+            if (finding.type() != FindingType.IAM_CONTROL_FAILED) continue;
             Row row = sheet.createRow(rowIndex++);
             values(row, finding.severity().name(), finding.type().name(), finding.ruleId(), finding.title(),
                     finding.description(), finding.affectedObject(), finding.recommendation(),
@@ -72,15 +76,26 @@ public class AnalysisExporter {
     }
 
     private void writeEvidence(Workbook workbook, CellStyle header, Analysis analysis) {
-        Sheet sheet = workbook.createSheet("Evidenzregister");
-        String[] columns = {"Dokument", "MIME-Type", "Chunks", "Dokumentdatum", "Veraltet"};
+        Sheet sheet = workbook.createSheet("Quellen");
+        String[] columns = {"Dokument", "MIME-Type", "Chunks", "Dokumentdatum", "Veraltet",
+                "Chunk-ID", "Fundstelle", "Vollständige Passage"};
         writeHeader(sheet, header, columns);
         int rowIndex = 1;
         for (var document : analysis.evidenceDocuments()) {
-            Row row = sheet.createRow(rowIndex++);
-            values(row, document.name(), document.mediaType(), String.valueOf(document.chunkCount()),
-                    document.documentDate() == null ? "Nicht erkannt" : document.documentDate().toString(),
-                    document.stale() ? "Ja" : "Nein");
+            if (document.passages().isEmpty()) {
+                Row row = sheet.createRow(rowIndex++);
+                values(row, document.name(), document.mediaType(), String.valueOf(document.chunkCount()),
+                        document.documentDate() == null ? "Nicht erkannt" : document.documentDate().toString(),
+                        document.stale() ? "Ja" : "Nein", "", "", "");
+                continue;
+            }
+            for (var passage : document.passages()) {
+                Row row = sheet.createRow(rowIndex++);
+                values(row, document.name(), document.mediaType(), String.valueOf(document.chunkCount()),
+                        document.documentDate() == null ? "Nicht erkannt" : document.documentDate().toString(),
+                        document.stale() ? "Ja" : "Nein", passage.chunkId().toString(),
+                        passage.locator(), passage.content());
+            }
         }
         finish(sheet, columns.length);
     }
@@ -124,7 +139,7 @@ public class AnalysisExporter {
     private String safe(String value) {
         if (value == null) return "";
         String cleaned = value.replace('\0', ' ');
-        return !cleaned.isEmpty() && "=+-@".indexOf(cleaned.charAt(0)) >= 0 ? "'" + cleaned : cleaned;
+        return FORMULA_PREFIX.matcher(cleaned).matches() ? "'" + cleaned : cleaned;
     }
 
     private void finish(Sheet sheet, int columns) {

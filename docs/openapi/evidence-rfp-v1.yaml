@@ -1,0 +1,350 @@
+openapi: 3.1.0
+info:
+  title: EvidenceRFP API
+  version: 0.2.0
+  description: Lokale, belegbare Security-Fragebogenanalyse. Alle Demodaten sind synthetisch.
+servers:
+  - url: http://127.0.0.1:8080
+paths:
+  /api/v1/capabilities:
+    get:
+      operationId: getCapabilities
+      responses:
+        '200':
+          description: Aktive Modelle, Datenfluss und harte Verarbeitungsgrenzen
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Capabilities' }
+  /api/v1/analyses:
+    post:
+      operationId: createAnalysis
+      parameters:
+        - in: header
+          name: Idempotency-Key
+          required: false
+          schema: { type: string, maxLength: 200 }
+        - in: query
+          name: customerName
+          required: false
+          schema: { type: string, maxLength: 200 }
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required: [rfp, evidence]
+              properties:
+                rfp: { type: string, format: binary }
+                evidence:
+                  type: array
+                  maxItems: 20
+                  items: { type: string, format: binary }
+                iamSnapshot: { type: string, format: binary }
+      responses:
+        '202':
+          description: Persistenter Analysejob wurde angenommen
+          headers:
+            Location:
+              description: Statusressource der Analyse
+              schema: { type: string, format: uri }
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/AnalysisStatus' }
+        '400': { $ref: '#/components/responses/InvalidInput' }
+        '409': { $ref: '#/components/responses/Conflict' }
+        '413': { $ref: '#/components/responses/PayloadTooLarge' }
+        '503': { $ref: '#/components/responses/ServiceUnavailable' }
+  /api/v1/analyses/{id}:
+    parameters:
+      - $ref: '#/components/parameters/AnalysisId'
+    get:
+      operationId: getAnalysisStatus
+      responses:
+        '200':
+          description: Persistierte Phase und echter Fortschritt
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/AnalysisStatus' }
+        '404': { $ref: '#/components/responses/NotFound' }
+    delete:
+      operationId: deleteAnalysis
+      responses:
+        '204': { description: Analyse und Job wurden atomar abgebrochen und gelöscht }
+        '404': { $ref: '#/components/responses/NotFound' }
+  /api/v1/analyses/{id}/result:
+    parameters:
+      - $ref: '#/components/parameters/AnalysisId'
+    get:
+      operationId: getAnalysisResult
+      responses:
+        '200':
+          description: Belegte Antworten, Claims, Findings und Retrieval-Provenienz
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/AnalysisResult' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/AnalysisNotReady' }
+  /api/v1/analyses/{id}/questions/{questionId}:
+    parameters:
+      - $ref: '#/components/parameters/AnalysisId'
+      - in: path
+        name: questionId
+        required: true
+        schema: { type: string }
+      - in: header
+        name: If-Match
+        required: true
+        schema: { type: string, examples: ['"3"'] }
+    patch:
+      operationId: updateQuestion
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                answer: { type: string }
+                reviewStatus: { $ref: '#/components/schemas/ReviewStatus' }
+      responses:
+        '200':
+          description: Atomar aktualisierte Frage; neue Revision steht zusätzlich im ETag
+          headers:
+            ETag: { schema: { type: string } }
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Question' }
+        '412': { $ref: '#/components/responses/EditConflict' }
+        '428': { $ref: '#/components/responses/PreconditionRequired' }
+        '409': { $ref: '#/components/responses/Conflict' }
+  /api/v1/analyses/{id}/export.xlsx:
+    parameters:
+      - $ref: '#/components/parameters/AnalysisId'
+    get:
+      operationId: exportEvidencePack
+      responses:
+        '200':
+          description: Evidence Pack mit Antworten, Findings, Quellen und Review
+          content:
+            application/vnd.openxmlformats-officedocument.spreadsheetml.sheet:
+              schema: { type: string, format: binary }
+        '409': { $ref: '#/components/responses/Conflict' }
+components:
+  parameters:
+    AnalysisId:
+      in: path
+      name: id
+      required: true
+      schema: { type: string, format: uuid }
+  responses:
+    InvalidInput:
+      description: Upload oder Anfrage wurde kontrolliert abgelehnt
+      content: { application/problem+json: { schema: { $ref: '#/components/schemas/Problem' } } }
+    PayloadTooLarge:
+      description: Upload überschreitet ein konfiguriertes Budget
+      content: { application/problem+json: { schema: { $ref: '#/components/schemas/Problem' } } }
+    NotFound:
+      description: Analyse oder Frage existiert nicht
+      content: { application/problem+json: { schema: { $ref: '#/components/schemas/Problem' } } }
+    Conflict:
+      description: Idempotenz-, Zustands-, Freigabe- oder Review-Konflikt
+      content: { application/problem+json: { schema: { $ref: '#/components/schemas/Problem' } } }
+    AnalysisNotReady:
+      description: ANALYSIS_NOT_READY
+      content: { application/problem+json: { schema: { $ref: '#/components/schemas/Problem' } } }
+    EditConflict:
+      description: EDIT_CONFLICT
+      content: { application/problem+json: { schema: { $ref: '#/components/schemas/Problem' } } }
+    PreconditionRequired:
+      description: PRECONDITION_REQUIRED
+      content: { application/problem+json: { schema: { $ref: '#/components/schemas/Problem' } } }
+    ServiceUnavailable:
+      description: Lokale Analysekapazität ist vorübergehend ausgelastet
+      content: { application/problem+json: { schema: { $ref: '#/components/schemas/Problem' } } }
+  schemas:
+    AnalysisPhase:
+      type: string
+      enum: [QUEUED, PARSING, INDEXING, ANSWERING, IAM_CHECKS, PERSISTING, COMPLETED, FAILED, CANCELLED]
+    AnalysisStatus:
+      type: object
+      required: [id, status, phase, progressPercent, attempt, createdAt, totalQuestions, reviewedQuestions]
+      properties:
+        id: { type: string, format: uuid }
+        status: { type: string, enum: [PROCESSING, COMPLETED, FAILED] }
+        phase: { $ref: '#/components/schemas/AnalysisPhase' }
+        progressPercent: { type: integer, minimum: 0, maximum: 100 }
+        attempt: { type: integer, minimum: 0, maximum: 2 }
+        updatedAt: { type: string, format: date-time }
+        heartbeatAt: { type: string, format: date-time }
+        failureCode: { type: string }
+        createdAt: { type: string, format: date-time }
+        completedAt: { type: string, format: date-time }
+        totalQuestions: { type: integer }
+        reviewedQuestions: { type: integer }
+    AnswerStatus: { type: string, enum: [SUPPORTED, PARTIAL, NOT_FOUND] }
+    ReviewStatus: { type: string, enum: [DRAFT, APPROVED, CHANGES_REQUIRED] }
+    Retrieval:
+      type: object
+      description: Retrieval-Rangfolge, ausdrücklich keine KI-Konfidenz
+      properties:
+        methods:
+          type: array
+          items: { type: string, enum: [DENSE, FULL_TEXT, LEXICAL_FALLBACK] }
+        denseRank: { type: integer, minimum: 1 }
+        fullTextRank: { type: integer, minimum: 1 }
+        fusedScore: { type: number, minimum: 0 }
+        chunkHash: { type: string, pattern: '^[a-f0-9]{64}$' }
+        retrievalVersion: { type: string }
+        embeddingModel: { type: string }
+    Citation:
+      type: object
+      required: [id, chunkId, documentId, documentName, locator, quote, relevance]
+      properties:
+        id: { type: string, format: uuid }
+        chunkId: { type: string, format: uuid }
+        documentId: { type: string }
+        documentName: { type: string }
+        locator: { type: string }
+        quote: { type: string }
+        relevance: { type: string }
+        retrieval: { $ref: '#/components/schemas/Retrieval' }
+    Claim:
+      type: object
+      required: [text, citationIds]
+      properties:
+        text: { type: string }
+        citationIds:
+          type: array
+          minItems: 1
+          items: { type: string, format: uuid }
+    Finding:
+      type: object
+      required: [id, type, severity, ruleId, title, description, recommendation, blocksApproval]
+      properties:
+        id: { type: string, format: uuid }
+        type: { type: string }
+        severity: { type: string, enum: [INFO, WARNING, HIGH] }
+        ruleId: { type: string }
+        title: { type: string }
+        description: { type: string }
+        affectedObject: { type: string }
+        recommendation: { type: string }
+        blocksApproval: { type: boolean }
+    Question:
+      type: object
+      required: [id, question, category, answer, answerStatus, reviewStatus, citations, findings, claims, revision]
+      properties:
+        id: { type: string }
+        question: { type: string }
+        category: { type: string }
+        answer: { type: string }
+        answerStatus: { $ref: '#/components/schemas/AnswerStatus' }
+        reviewStatus: { $ref: '#/components/schemas/ReviewStatus' }
+        citations: { type: array, items: { $ref: '#/components/schemas/Citation' } }
+        internalClarification: { type: string }
+        findings: { type: array, items: { $ref: '#/components/schemas/Finding' } }
+        claims: { type: array, items: { $ref: '#/components/schemas/Claim' } }
+        revision: { type: integer, format: int64, minimum: 0 }
+    EvidencePassage:
+      type: object
+      properties:
+        chunkId: { type: string, format: uuid }
+        locator: { type: string }
+        content: { type: string }
+    EvidenceDocument:
+      type: object
+      properties:
+        name: { type: string }
+        mediaType: { type: string }
+        chunkCount: { type: integer }
+        documentDate: { type: string, format: date }
+        stale: { type: boolean }
+        passages: { type: array, items: { $ref: '#/components/schemas/EvidencePassage' } }
+    ReviewEvent:
+      type: object
+      required: [id, questionId, actor, action, provenance, occurredAt, afterAnswer, afterReviewStatus]
+      properties:
+        id: { type: string, format: uuid }
+        questionId: { type: string }
+        actor: { type: string, enum: [ANALYSIS_ENGINE, LOCAL_REVIEWER] }
+        action: { type: string, enum: [GENERATED, ANSWER_EDITED, REVIEW_STATUS_CHANGED, ANSWER_AND_REVIEW_STATUS_CHANGED] }
+        provenance: { type: string, enum: [GENERATED, HUMAN_EDITED] }
+        occurredAt: { type: string, format: date-time }
+        beforeAnswer: { type: string }
+        afterAnswer: { type: string }
+        beforeReviewStatus: { $ref: '#/components/schemas/ReviewStatus' }
+        afterReviewStatus: { $ref: '#/components/schemas/ReviewStatus' }
+    RunMetadata:
+      type: object
+      required: [retrievalVersion, promptVersion, embeddingModel, chatModel, citationValidation, dataBoundary]
+      properties:
+        retrievalVersion: { type: string }
+        promptVersion: { type: string }
+        embeddingModel: { type: string }
+        chatModel: { type: string }
+        citationValidation: { type: string }
+        dataBoundary: { type: string }
+    AnalysisResult:
+      type: object
+      required: [id, customerName, synthetic, status, reviewRevision, questions, findings, evidenceDocuments, reviewEvents, runMetadata]
+      properties:
+        id: { type: string, format: uuid }
+        customerName: { type: string }
+        synthetic: { type: boolean }
+        status: { type: string, enum: [COMPLETED] }
+        reviewRevision: { type: integer, format: int64 }
+        questions: { type: array, items: { $ref: '#/components/schemas/Question' } }
+        findings: { type: array, items: { $ref: '#/components/schemas/Finding' } }
+        evidenceDocuments: { type: array, items: { $ref: '#/components/schemas/EvidenceDocument' } }
+        reviewEvents: { type: array, items: { $ref: '#/components/schemas/ReviewEvent' } }
+        runMetadata: { $ref: '#/components/schemas/RunMetadata' }
+    Limits:
+      type: object
+      required: [maxFileBytes, maxTotalBytes, maxEvidenceFiles, maxPdfPages, maxExtractedCharacters, maxChunksPerFile, maxRfpQuestions, maxQuestionCharacters, maxOoxmlExpandedBytes, maxOoxmlCompressionRatio, maxOoxmlEntries, parserTimeoutSeconds]
+      properties:
+        maxFileBytes: { type: integer, format: int64 }
+        maxTotalBytes: { type: integer, format: int64 }
+        maxEvidenceFiles: { type: integer }
+        maxPdfPages: { type: integer }
+        maxExtractedCharacters: { type: integer }
+        maxChunksPerFile: { type: integer }
+        maxRfpQuestions: { type: integer }
+        maxQuestionCharacters: { type: integer }
+        maxOoxmlExpandedBytes: { type: integer, format: int64 }
+        maxOoxmlCompressionRatio: { type: number }
+        maxOoxmlEntries: { type: integer }
+        parserTimeoutSeconds: { type: integer, format: int64 }
+    Models:
+      type: object
+      required: [chat, embeddings]
+      properties:
+        chat: { type: string }
+        embeddings: { type: string }
+    Capabilities:
+      type: object
+      required: [mode, aiProvider, aiAvailable, limits, models, retrievalVersion, dataBoundary, dataFlow, demoAnalysisId]
+      properties:
+        mode: { type: string }
+        aiProvider: { type: string }
+        aiAvailable: { type: boolean }
+        maxFileSizeBytes: { type: integer, format: int64 }
+        supportedRfpTypes: { type: array, items: { type: string } }
+        supportedEvidenceTypes: { type: array, items: { type: string } }
+        iamRules: { type: array, items: { type: string } }
+        limits: { $ref: '#/components/schemas/Limits' }
+        models: { $ref: '#/components/schemas/Models' }
+        retrievalVersion: { type: string }
+        dataBoundary: { type: string }
+        dataFlow: { type: array, items: { type: string } }
+        demoAnalysisId: { type: string, format: uuid }
+    Problem:
+      type: object
+      required: [type, title, status, detail, code]
+      properties:
+        type: { type: string, format: uri }
+        title: { type: string }
+        status: { type: integer }
+        detail: { type: string }
+        instance: { type: string, format: uri }
+        code: { type: string }

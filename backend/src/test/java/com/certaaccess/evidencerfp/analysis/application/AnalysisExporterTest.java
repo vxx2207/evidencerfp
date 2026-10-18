@@ -20,7 +20,8 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 class AnalysisExporterTest {
     @Test
     void escapesEverySpreadsheetFormulaPrefix() throws Exception {
-        List<String> payloads = List.of("=1+1", "+SUM(A1:A2)", "-2+3", "@malicious");
+        List<String> payloads = List.of("=1+1", "+SUM(A1:A2)", "-2+3", "@malicious",
+                "  =HYPERLINK(\"https://example.invalid\")", "\t@SUM(A1:A2)");
         List<QuestionResult> questions = java.util.stream.IntStream.range(0, payloads.size())
                 .mapToObj(index -> new QuestionResult("RFP-" + index, "Frage", "Test", payloads.get(index),
                         AnswerStatus.SUPPORTED, ReviewStatus.APPROVED, List.of(), null, List.of()))
@@ -32,6 +33,10 @@ class AnalysisExporterTest {
         byte[] export = new AnalysisExporter().toXlsx(analysis);
 
         try (var workbook = new XSSFWorkbook(new ByteArrayInputStream(export))) {
+            assertThat(workbook.getSheetName(0)).isEqualTo("Antworten");
+            assertThat(workbook.getSheetName(1)).isEqualTo("IAM Findings");
+            assertThat(workbook.getSheetName(2)).isEqualTo("Quellen");
+            assertThat(workbook.getSheetName(3)).isEqualTo("Review");
             var sheet = workbook.getSheet("Antworten");
             for (int index = 0; index < payloads.size(); index++) {
                 assertThat(sheet.getRow(index + 1).getCell(3).getStringCellValue())

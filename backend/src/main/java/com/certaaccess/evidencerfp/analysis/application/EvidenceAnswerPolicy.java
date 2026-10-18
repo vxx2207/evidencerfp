@@ -91,7 +91,8 @@ public class EvidenceAnswerPolicy {
                     : "Kann der fachliche Owner einen aktuellen, freigegebenen Beleg bereitstellen?";
         }
         return new QuestionResult(result.id(), result.question(), result.category(), result.answer(),
-                AnswerStatus.PARTIAL, result.reviewStatus(), result.citations(), clarification, findings);
+                AnswerStatus.PARTIAL, result.reviewStatus(), result.citations(), clarification, findings,
+                result.claims(), result.revision());
     }
 
     private boolean isStale(List<EvidenceChunk> chunks) {
@@ -105,7 +106,8 @@ public class EvidenceAnswerPolicy {
         citedChunks.forEach(chunk -> chunksById.put(chunk.id(), chunk));
         List<CitedText> texts = citations.stream()
                 .filter(citation -> chunksById.containsKey(citation.chunkId()))
-                .map(citation -> new CitedText(citation.chunkId(), citation.quote()))
+                .map(citation -> new CitedText(
+                        chunksById.get(citation.chunkId()).documentName(), citation.quote()))
                 .filter(cited -> cited.text() != null && !cited.text().isBlank())
                 .toList();
         if (texts.stream().map(CitedText::sourceId).distinct().count() < 2) return false;
@@ -118,7 +120,7 @@ public class EvidenceAnswerPolicy {
     }
 
     private boolean hasDifferentFactsAcrossDocuments(List<CitedText> texts) {
-        Map<String, Map<UUID, Set<String>>> valuesByUnitAndSource = new HashMap<>();
+        Map<String, Map<String, Set<String>>> valuesByUnitAndSource = new HashMap<>();
         for (CitedText cited : texts) {
             var matcher = FACT_VALUE.matcher(cited.text());
             while (matcher.find()) {
@@ -138,5 +140,5 @@ public class EvidenceAnswerPolicy {
         return "%".equals(unit) ? "prozent" : unit;
     }
 
-    private record CitedText(UUID sourceId, String text) { }
+    private record CitedText(String sourceId, String text) { }
 }

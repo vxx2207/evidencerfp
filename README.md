@@ -1,6 +1,6 @@
 # EvidenceRFP
 
-![Release](https://img.shields.io/badge/release-v0.1.0-0f766e)
+![Release](https://img.shields.io/badge/release-v0.2.0-0f766e)
 ![CI](https://img.shields.io/badge/CI-GitHub_Actions_ready-2088ff)
 ![GitHub Pages](https://img.shields.io/badge/demo-GitHub_Pages_ready-222222)
 ![License](https://img.shields.io/badge/license-MIT-2f855a)
@@ -17,9 +17,9 @@ EvidenceRFP unterstützt Technical-Sales-Teams dabei, wiederkehrende Security-Fr
 
 > **Schnelleinstieg:** Die Anwendung besitzt eine geführte **60-Sekunden-Demo**. Lokal starten, auf „60-Sekunden-Demo starten“ klicken und nacheinander verifizierte Quelle, Quellenkonflikt, bewusstes Nichtwissen, IAM-Finding und Evidence Pack erleben. Der GitHub-Pages-Workflow ist vorbereitet; der öffentliche Link wird nach dem ersten Push des noch nicht verbundenen Repositories ergänzt.
 
-| 24 synthetische Fragen | 94,1 % Recall@6 | 100 % technisch validierte Zitationen | 3 deterministische IAM-Regeln |
+| 80 Golden-Set-Fälle | 100 % Recall@6 | 100 % technisch validierte Zitationen | 3 deterministische IAM-Regeln |
 |---:|---:|---:|---:|
-| nachvollziehbarer Demo-Datensatz | 16/17 beantwortbare Golden-Set-Fragen | Chunk und Zitat serverseitig geprüft | ohne LLM-Entscheidung |
+| deutsch, synthetisch, versioniert | MRR 97,8 % in der CI-Baseline | Claim, Chunk und Zitat serverseitig geprüft | ohne LLM-Entscheidung |
 
 ![EvidenceRFP Answer Workbench mit geöffneter, exakt markierter Quellenpassage](docs/assets/evidence-review.png)
 
@@ -63,6 +63,11 @@ Der vollständige Moderationstext steht im [Demo Talk Track](docs/DEMO_TALK_TRAC
 - geführte, per Hash-Link teilbare 60-Sekunden-Tour und reproduzierbarer Demo-Reset
 - echtes XLSX Evidence Pack auch in der statischen Browser-Demo
 - Geführter lokaler Importdialog für XLSX, mehrere PDF/DOCX-Dateien und einen optionalen IAM-Snapshot
+- neustartfeste PostgreSQL-Jobs mit Lease, Heartbeat, maximal zwei Versuchen und atomarer Finalisierung
+- optimistische Review-Sperre über `If-Match`, Fragenrevision und transaktionales Audit-Ereignis
+- Hybrid Retrieval aus pgvector und deutscher PostgreSQL-Volltextsuche mit Reciprocal Rank Fusion
+- persistierte Retrieval-Provenienz und einzelne, serverseitig verifizierte Claims
+- gehärtete OOXML-/PDF-Verarbeitung mit Parser-, Dekompressions-, Seiten-, Zeichen- und Chunkbudgets
 
 ## Architektur
 
@@ -71,14 +76,16 @@ flowchart LR
     U[Sales Engineer] --> UI[React + TypeScript]
     UI -->|DemoAnalysisGateway| FIX[Vorberechnete Fixtures]
     UI -->|ApiAnalysisGateway| API[Spring Boot API]
-    API --> IMP[Import & Validierung]
-    API --> ORCH[Analyse-Orchestrierung]
+    API --> IMP[Import & gehärtete Validierung]
+    API --> JOB[(Persistente Jobs + Leases)]
+    JOB --> ORCH[Worker + Recovery]
     IMP --> DOC[PDF / DOCX / XLSX Parser]
-    DOC --> RET[Chunking & Retrieval]
-    RET --> DB[(PostgreSQL + pgvector)]
+    DOC --> RET[450/60 Token Chunking]
+    RET --> HYB[Dense + deutsche FTS + RRF]
+    HYB --> DB[(PostgreSQL + pgvector)]
     ORCH --> LLM[Ollama / optionaler Provider]
     ORCH --> IAM[Deterministische IAM-Regeln]
-    LLM --> CIT[Zitationsprüfung]
+    LLM --> CIT[Claim-, Zitations- und Negationsprüfung]
     IAM --> REV[Review-Ergebnis]
     CIT --> REV
     REV --> EXP[XLSX Evidence Pack]
@@ -95,6 +102,8 @@ flowchart LR
 - deterministischer Offline-Modus ohne KI-Schlüssel
 - Ollama mit `llama3.1:8b` und `bge-m3` als lokale KI-Voreinstellung
 - optionaler, bewusst zu aktivierender OpenAI-Adapter mit eigenem API-Key
+- OpenAPI-3.1-Vertrag und daraus reproduzierbar generierter TypeScript-Client
+- Micrometer-/Prometheus-Metriken und strukturierte, inhaltsfreie Korrelationslogs
 - JUnit, Testcontainers, Vitest, Testing Library und Playwright
 
 ## Quickstart: öffentliche Demo lokal ansehen
@@ -188,18 +197,19 @@ In diesem Modus verlassen Dokumentpassagen die lokale Umgebung. Für reale Kunde
 | Methode | Pfad | Zweck |
 |---|---|---|
 | `GET` | `/api/v1/capabilities` | Laufzeitfähigkeiten und aktivierter KI-Provider |
-| `POST` | `/api/v1/analyses` | RFP, Evidenzdateien und optionalen IAM-Snapshot einreichen |
+| `POST` | `/api/v1/analyses` | RFP, Evidenzdateien und optionalen IAM-Snapshot einreichen; optional mit `Idempotency-Key` |
 | `GET` | `/api/v1/analyses/{id}` | Fortschritt und Verarbeitungsstatus abrufen |
 | `GET` | `/api/v1/analyses/{id}/result` | Fragen, Antworten, vollständige Quellenpassagen, Findings und Reviewereignisse laden |
-| `PATCH` | `/api/v1/analyses/{id}/questions/{questionId}` | Antwort bearbeiten oder freigeben |
+| `PATCH` | `/api/v1/analyses/{id}/questions/{questionId}` | Antwort bearbeiten oder freigeben; verlangt `If-Match` mit Fragenrevision |
 | `GET` | `/api/v1/analyses/{id}/export.xlsx` | Geprüftes Evidence Pack exportieren |
 | `DELETE` | `/api/v1/analyses/{id}` | Analyse und zugehörige lokale Daten löschen |
 
-Der Import ist als lokaler Hintergrundjob umgesetzt: `POST /analyses` validiert und puffert die Dateien, liefert sofort eine Analyse-ID mit `PROCESSING`, und das Frontend fragt anschließend den Status bis `COMPLETED` oder `FAILED` ab. Die eigentliche Ergebnisressource wird erst nach erfolgreichem Abschluss geladen. Die kleine, begrenzte Worker-Queue ist für die lokale Einzelnutzer-Demo gedacht – nicht für einen öffentlichen Mehrbenutzerbetrieb.
+Der Import ist als persistenter lokaler Hintergrundjob umgesetzt: `POST /analyses` validiert und speichert die Dateien unter servergenerierten Namen, liefert sofort eine Analyse-ID mit `PROCESSING`, und das Frontend fragt anschließend Phase und echten Fortschritt bis `COMPLETED` oder `FAILED` ab. Worker claimen Jobs atomar, erneuern eine 30-Sekunden-Lease alle zehn Sekunden und übernehmen abgebrochene Läufe höchstens einmal neu. Ergebnis, Review und Export sind vor `COMPLETED` mit `409 ANALYSIS_NOT_READY` gesperrt. Der vollständige Vertrag liegt als [OpenAPI 3.1](docs/openapi/evidence-rfp-v1.yaml) vor.
 
 ## Portfolio-Unterlagen
 
 - [Architekturentscheidungen](docs/ARCHITECTURE.md)
+- [Reproduzierbare Evaluation](docs/EVALUATION.md)
 - [Threat Model](docs/THREAT_MODEL.md)
 - [Discovery Brief](docs/DISCOVERY_BRIEF.md)
 - [ROI Case](docs/ROI_CASE.md)
@@ -213,10 +223,10 @@ Der Import ist als lokaler Hintergrundjob umgesetzt: `POST /analyses` validiert 
 
 ## Qualitätsziele
 
-- Gemessener Offline-Recall@6: **94,1 % (16/17)** beantwortbare Golden-Set-Fragen; die CI-Untergrenze liegt bei 90 %.
-- 100 % ausgegebener Zitationen zeigen auf einen tatsächlich abgerufenen Chunk und ein darin enthaltenes Zitat.
-- Unbeantwortbare Fragen bleiben `NOT_FOUND`; Konflikte und veraltete Evidenz verhindern automatische Freigaben.
-- Positive und negative IAM-Fixtures decken jede Kontrollregel ab.
+- Deterministische CI-Baseline über **80 deutsche Fälle**: Recall@6 **100 %**, MRR **97,8 %**, Status-Macro-F1 **100 %** und Required-Term-Abdeckung **100 %**.
+- Zitationspräzision sowie `NOT_FOUND` Precision und Recall liegen im versionierten synthetischen Set bei **100 %**.
+- 100 % ausgegebener Zitationen zeigen auf einen abgerufenen Chunk und ein darin enthaltenes Zitat; Zahlen, zentrale Entitäten und Negationen werden zusätzlich geprüft.
+- Testcontainers deckt Migrationen, Hybrid Retrieval, zwei Worker, Recovery, Review-Parallelität und XLSX-Export ab; Vitest und Playwright sichern Oberfläche, Tour, Deep Links und Download.
 
 ## Bewusste Grenzen
 

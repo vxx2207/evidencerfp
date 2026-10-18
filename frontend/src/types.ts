@@ -1,6 +1,19 @@
 export type AnswerStatus = 'SUPPORTED' | 'PARTIAL' | 'NOT_FOUND';
 export type ReviewStatus = 'OFFEN' | 'FREIGEGEBEN' | 'BLOCKIERT';
 export type FindingSeverity = 'KRITISCH' | 'HOCH' | 'MITTEL';
+export type AnalysisStatus = 'QUEUED' | 'PROCESSING' | 'COMPLETED' | 'FAILED' | 'CANCELLED';
+export type AnalysisPhase = 'QUEUED' | 'PARSING' | 'INDEXING' | 'ANSWERING' | 'IAM_CHECKS' | 'PERSISTING' | 'COMPLETED' | 'FAILED' | 'CANCELLED';
+
+export interface RetrievalProvenance {
+  methods: Array<'DENSE' | 'FULL_TEXT' | 'LEXICAL_FALLBACK'>;
+  denseRank?: number;
+  fullTextRank?: number;
+  fusedRank?: number;
+  fusedScore?: number;
+  chunkHash?: string;
+  retrievalVersion?: string;
+  embeddingModel?: string;
+}
 
 export interface Citation {
   id: string;
@@ -10,6 +23,12 @@ export interface Citation {
   page: number;
   quote: string;
   relevance: string;
+  retrieval?: RetrievalProvenance;
+}
+
+export interface AnswerClaim {
+  text: string;
+  citationIds: string[];
 }
 
 export interface Question {
@@ -21,7 +40,9 @@ export interface Question {
   answer: string;
   rationale: string;
   updatedAt: string;
+  revision?: number;
   citations: Citation[];
+  claims?: AnswerClaim[];
   clarification?: string;
   conflict?: {
     title: string;
@@ -67,8 +88,20 @@ export interface Analysis {
   name: string;
   customer: string;
   createdAt: string;
-  status: 'COMPLETED' | 'PROCESSING';
+  status: AnalysisStatus;
   progress: number;
+  phase?: AnalysisPhase;
+  attempt?: number;
+  reviewRevision?: number;
+  failure?: { code: string; message: string; retryable: boolean };
+  technicalProof?: {
+    retrievalVersion: string;
+    promptVersion: string;
+    embeddingModel: string;
+    chatModel: string;
+    citationValidation: string;
+    dataBoundary: string;
+  };
   questions: Question[];
   documents: EvidenceDocument[];
   findings: IamFinding[];
@@ -80,11 +113,20 @@ export interface Capabilities {
   aiEnabled: boolean;
   exportFormats: string[];
   models?: { chat: string; embeddings: string };
+  retrievalVersion?: string;
+  dataBoundary?: string;
+  limits?: {
+    maxFileBytes: number;
+    maxTotalBytes: number;
+    maxEvidenceFiles: number;
+    maxPdfPages: number;
+  };
 }
 
 export interface QuestionUpdate {
   answer?: string;
   reviewStatus?: ReviewStatus;
+  expectedRevision?: number;
 }
 
 export interface AnalysisInput {
@@ -95,9 +137,11 @@ export interface AnalysisInput {
 }
 
 export interface AnalysisProgress {
-  status: 'PROCESSING' | 'COMPLETED';
+  status: AnalysisStatus;
   percent: number;
   phase: string;
+  attempt?: number;
+  failureCode?: string;
 }
 
 export interface AnalysisGateway {

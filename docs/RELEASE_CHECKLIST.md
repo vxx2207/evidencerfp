@@ -1,17 +1,20 @@
-# Release-Checkliste v0.1.0
+# Release-Checkliste v0.2.0
 
 Diese Liste trennt lokal vollständig vorbereitete Arbeit von Schritten, die erst nach Verbindung mit einem persönlichen GitHub-Repository möglich sind.
 
 ## Lokal
 
-- [ ] Backend-, Frontend- und Browsertests grün
-- [ ] Production-Profile kompilieren und Testcontainers-Tests mit Docker ausführen
-- [ ] GitHub-Pages-Artefakt lokal bauen
-- [ ] 60-Sekunden-Tour sowie Deep Links prüfen
-- [ ] XLSX-Download in Excel oder LibreOffice öffnen
+- [x] Backend-, Frontend- und Browsertests lokal grün; Docker-Tests werden ohne Docker kontrolliert übersprungen
+- [x] Ollama- und OpenAI-Profile kompilieren
+- [x] GitHub-Pages-Artefakt lokal bauen
+- [x] 60-Sekunden-Tour, Deep Links, Reset und XLSX-Download per Playwright prüfen
+- [x] OpenAPI-Client neu generieren und Vertrag auf Drift prüfen
+- [x] deterministischen 80-Fälle-Qualitätsbericht erzeugen
+- [ ] Testcontainers-Suite mit Docker beziehungsweise in GitHub Actions ausführen
+- [ ] XLSX-Download zusätzlich in Excel oder LibreOffice öffnen
 - [ ] Screenshots und Demo-Aufnahme aktualisieren
-- [ ] Versionsnummern auf `0.1.0` vereinheitlichen
-- [ ] Arbeitsbaum sauber committen
+- [x] Versionsnummern auf `0.2.0` vereinheitlichen
+- [x] Arbeitsbaum sauber committen
 
 ## Nach Bereitstellung des GitHub-Remotes
 
@@ -21,7 +24,7 @@ Diese Liste trennt lokal vollständig vorbereitete Arbeit von Schritten, die ers
 - [ ] echten Live-Demo-Link in README und Repository-Metadaten eintragen
 - [ ] Badge-URLs auf den tatsächlichen Owner-/Repository-Pfad umstellen
 - [ ] Changelog-Link `OWNER/evidence-rfp` ersetzen
-- [ ] signierten oder annotierten Tag `v0.1.0` erstellen
+- [ ] `main` und annotierten Tag `v0.2.0` pushen
 - [ ] GitHub Release mit Demo-Link, Screenshots und synthetischem Beispiel-Evidence-Pack veröffentlichen
 
 ## Persönliches Portfolio

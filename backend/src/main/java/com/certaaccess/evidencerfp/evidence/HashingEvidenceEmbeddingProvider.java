@@ -16,6 +16,11 @@ import java.util.Locale;
 @Profile("production & !ollama & !openai")
 public class HashingEvidenceEmbeddingProvider implements EvidenceEmbeddingProvider {
     @Override
+    public String modelId() {
+        return "hashing-1024-v1";
+    }
+
+    @Override
     public float[] embed(String text) {
         float[] vector = new float[DIMENSIONS];
         String[] terms = text.toLowerCase(Locale.GERMAN).split("[^\\p{L}\\p{N}]+");

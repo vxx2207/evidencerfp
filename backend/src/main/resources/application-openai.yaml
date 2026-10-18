@@ -11,7 +11,12 @@ spring:
           model: ${OPENAI_EMBEDDING_MODEL:text-embedding-3-small}
           dimensions: 1024
 
+server:
+  address: ${SERVER_ADDRESS:127.0.0.1}
+
 evidence-rfp:
   ai:
     provider: openai
     enabled: true
+    chat-model: ${OPENAI_CHAT_MODEL:gpt-4.1-mini}
+    embedding-model: ${OPENAI_EMBEDDING_MODEL:text-embedding-3-small}

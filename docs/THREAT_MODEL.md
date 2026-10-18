@@ -1,6 +1,6 @@
 # Threat Model
 
-Stand: 15. Oktober 2026 · Gültig für den Portfolio-MVP mit ausschließlich synthetischen Daten.
+Stand: 18. Oktober 2026 · Gültig für EvidenceRFP 0.2 mit ausschließlich synthetischen Daten.
 
 ## Schutzgüter und Vertrauensgrenzen
 
@@ -23,11 +23,16 @@ flowchart LR
 | Bedrohung | Auswirkung | MVP-Kontrolle | Restrisiko |
 |---|---|---|---|
 | Datei tarnt sich über Endung oder MIME-Type | Parser-Angriff, unerwarteter Inhalt | Allowlist, MIME- und Magic-Byte-Abgleich, Größen- und Dateianzahllimit | Schwachstelle in Parserbibliothek |
-| ZIP-Bombe in DOCX/XLSX | Speicher-/CPU-Erschöpfung | komprimiertes Datei-/Request-Limit und Schutzmechanismen der Parserbibliotheken | Explizites Dekompressions- und Zeitbudget fehlt im MVP; DoS bleibt möglich |
-| Viele parallele Analysejobs | Arbeitsspeicher-/Worker-Erschöpfung | begrenzte Dateigröße, Worker-Anzahl und Job-Queue | In-Memory-Pufferung ist nur für lokale Einzelnutzung geeignet |
+| ZIP-Bombe in DOCX/XLSX | Speicher-/CPU-Erschöpfung | 100 MB entpackt, 100:1, 2.000 Einträge, Duplikat-/Traversalprüfung und 20-Sekunden-Parserbudget | Parser- oder Betriebssystemschwachstelle; kein Sandboxprozess |
+| Aktiver Inhalt in OOXML | Makroausführung, externe Datenabfrage oder eingebettete Payload | verpflichtende OOXML-Bestandteile; Makros, OLE, externe Beziehungen und verschlüsselte Pakete werden abgelehnt | neue oder unbekannte OOXML-Konstrukte |
+| Viele parallele Analysejobs | Arbeitsspeicher-/Worker-Erschöpfung | persistente Queue, begrenzte Worker, Dateibudgets, Leases und maximale Versuche | keine Benutzerquoten oder Rate Limits |
 | Pfadmanipulation über Dateinamen | Überschreiben lokaler Dateien | Servergenerierte IDs; Originalname nur als bereinigte Metadaten | Fehlerhafte Drittbibliothek |
 | Prompt Injection im Dokument | Modell folgt Dokumentanweisung | Dokument als untrusted context; Systeminstruktion; keine Tools; keine Seiteneffekte | Manipulierter Antwortentwurf |
-| Halluzinierte Zitation | Falscher Nachweis | Chunk muss aus Retrieval-Set stammen; Zitat muss im Chunk vorkommen; sonst `NOT_FOUND` | Semantisch irreführende echte Passage |
+| Halluzinierte Zitation oder gegenteiliger Claim | Falscher Nachweis | erlaubte Chunk-ID, exaktes Zitat, Zahlen, zentrale Entitäten und Negationen werden geprüft | semantisch irreführende, aber formal passende Passage |
+| Manipulierte oder übergroße Modellausgabe | Parserlast oder eingeschleuste Felder | exaktes Claim-Schema, Feld- und Listenlimits sowie 600.000-Zeichen-Gesamtlimit | formal gültige, aber fachlich irreführende Ausgabe |
+| Prozessabbruch während Analyse | dauerhaft hängender oder doppelt finalisierter Job | Lease/Heartbeat, vollständiger idempotenter Neustart, höchstens zwei Versuche und CAS-Finalisierung | lokale Rohdatei geht durch externen Datenträgerfehler verloren |
+| Gelöschte Analyse wird durch alten Worker neu angelegt | unerwartete Datenwiederkehr | atomarer Abbruch und Finalisierung ausschließlich aus `PROCESSING` durch aktuellen Lease-Besitzer | Administrator manipuliert Datenbank direkt |
+| Parallele Reviewänderungen überschreiben sich | verlorene Freigabe oder Auditlücke | Fragenrevision, `If-Match`, 412 und Audit-Ereignis in derselben Transaktion | keine Benutzeridentität im MVP |
 | Datenabfluss an KI-Provider | Vertrauliche Inhalte verlassen System | Ollama lokal als Default; Cloud nur explizit mit eigenem Schlüssel | Fehlkonfiguration bei Cloud-Nutzung |
 | XLSX Formula Injection | Code/Link wird beim Öffnen ausgeführt | Zellen mit `=`, `+`, `-` oder `@` werden als Text escaped | Verhalten exotischer Office-Clients |
 | Unbefugte Freigabe | Ungeprüfte Antwort wird exportiert | Explizite Review-Zustände; Konflikte blockieren Freigabe | MVP hat keine Benutzeridentität |
@@ -59,10 +64,11 @@ Der MVP besitzt keine Authentifizierung, Rollen, Mandantenisolation, Verschlüss
 - Unit-Tests, dass fremde Chunk-IDs und nicht enthaltene Zitate verworfen werden
 - Exporttest für alle vier Formula-Injection-Präfixe
 - Tests, dass Konflikte die Freigabe verhindern und Negativfragen `NOT_FOUND` bleiben
-- Golden-Set-Test mit einer CI-Untergrenze von 90 % Recall@6
+- 80-Fälle-Golden-Set mit Gates für Recall@6, MRR, Status-Macro-F1, Pflichtbegriffe, Zitationen und `NOT_FOUND`
+- Testcontainers-Tests für zwei Worker, Lease-Recovery, Löschrennen, optimistische Reviews und Hybrid Retrieval
 - positive und negative Fixtures für alle drei IAM-Regeln
 
-Vor einer produktiven Nutzung fehlen insbesondere ein explizites Dekompressions-/Parserzeitbudget, Malware-Scanning und modellübergreifendes Prompt-Injection-Red-Teaming.
+Vor einer produktiven Nutzung fehlen insbesondere Malware-Scanning beziehungsweise Parser-Sandboxing und modellübergreifendes Prompt-Injection-Red-Teaming.
 
 ## Referenzen
 

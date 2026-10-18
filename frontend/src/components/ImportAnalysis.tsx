@@ -76,7 +76,7 @@ export function ImportAnalysis({
           <div className="analysis-progress" role="status" aria-live="polite">
             <div><span>{progress.phase}</span><strong>{progress.percent}%</strong></div>
             <progress max="100" value={progress.percent}>{progress.percent}%</progress>
-            <small>Die Analyse läuft als lokaler Hintergrundjob. Dieses Fenster bitte geöffnet lassen.</small>
+            <small>Persistenter lokaler Hintergrundjob{progress.attempt ? ` · Versuch ${progress.attempt} von 2` : ''}. Ein Backend-Neustart setzt die Verarbeitung kontrolliert fort.</small>
           </div>
         )}
         {error && <div className="import-error" role="alert">{error}</div>}

@@ -26,7 +26,7 @@ public class EvidenceRfpApplication {
     OpenAPI evidenceRfpOpenApi() {
         return new OpenAPI().info(new Info()
                 .title("EvidenceRFP API")
-                .version("v1")
+                .version("0.2.0")
                 .description("Verifizierbare Antworten auf Security-Fragebögen mit IAM-Kontrollen. "
                         + "Die enthaltenen Demodaten sind vollständig synthetisch."));
     }

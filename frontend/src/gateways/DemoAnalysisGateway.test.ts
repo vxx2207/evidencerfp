@@ -31,6 +31,7 @@ describe('DemoAnalysisGateway', () => {
     await gateway.updateQuestion(original.id, 'IAM-004', {
       answer: 'Fachlich geprüfte Demo-Antwort.',
       reviewStatus: 'FREIGEGEBEN',
+      expectedRevision: original.questions.find((question) => question.id === 'IAM-004')?.revision,
     });
 
     const reloaded = await new DemoAnalysisGateway().getAnalysis();
@@ -38,7 +39,24 @@ describe('DemoAnalysisGateway', () => {
       answer: 'Fachlich geprüfte Demo-Antwort.',
       reviewStatus: 'FREIGEGEBEN',
       updatedAt: 'Gerade eben',
+      revision: 2,
     });
+  });
+
+  it('weist parallele Änderungen mit einer veralteten Revision zurück', async () => {
+    const gateway = new DemoAnalysisGateway();
+    const analysis = await gateway.resetAnalysis();
+    const question = analysis.questions.find((item) => item.id === 'IAM-004')!;
+
+    await gateway.updateQuestion(analysis.id, question.id, {
+      answer: 'Erste Änderung',
+      expectedRevision: question.revision,
+    });
+
+    await expect(gateway.updateQuestion(analysis.id, question.id, {
+      answer: 'Veraltete zweite Änderung',
+      expectedRevision: question.revision,
+    })).rejects.toThrow(/zwischenzeitlich geändert/);
   });
 
   it('setzt lokale Demo-Änderungen auf das Fixture zurück', async () => {

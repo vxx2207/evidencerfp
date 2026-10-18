@@ -5,6 +5,8 @@ import org.apache.poi.ss.usermodel.Row;
 import org.apache.poi.ss.usermodel.Sheet;
 import org.apache.poi.ss.usermodel.Workbook;
 import org.apache.poi.ss.usermodel.WorkbookFactory;
+import org.apache.poi.openxml4j.util.ZipSecureFile;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 import org.springframework.web.multipart.MultipartFile;
 
@@ -17,9 +19,26 @@ import java.util.Map;
 
 @Component
 public class RfpParser {
-    private static final int MAX_QUESTIONS = 500;
+    public static final int MAX_QUESTIONS = 500;
+    private final DocumentProcessingProperties properties;
+
+    public RfpParser() {
+        this(DocumentProcessingProperties.secureDefaults());
+    }
+
+    @Autowired
+    public RfpParser(DocumentProcessingProperties properties) {
+        this.properties = properties;
+        ZipSecureFile.setMaxEntrySize(properties.maxOoxmlExpandedBytes());
+        ZipSecureFile.setMaxTextSize(properties.maxOoxmlExpandedBytes());
+        ZipSecureFile.setMinInflateRatio(1.0 / properties.maxOoxmlCompressionRatio());
+    }
 
     public List<RfpQuestion> parse(MultipartFile file) {
+        return ParserExecution.within(properties.parserTimeout(), () -> parseWorkbook(file));
+    }
+
+    private List<RfpQuestion> parseWorkbook(MultipartFile file) {
         try (Workbook workbook = WorkbookFactory.create(file.getInputStream())) {
             if (workbook.getNumberOfSheets() == 0) {
                 throw new InvalidUploadException("Die RFP-Datei enthält kein Arbeitsblatt.");
@@ -46,6 +65,11 @@ public class RfpParser {
                 if (id.isBlank() || question.isBlank()) {
                     throw new InvalidUploadException("RFP-Zeile " + (index + 1) + " benötigt ID und Question.");
                 }
+                if (question.length() > properties.maxQuestionCharacters()) {
+                    throw new InvalidUploadException("RFP-Zeile " + (index + 1)
+                            + " überschreitet das Fragenlimit von "
+                            + properties.maxQuestionCharacters() + " Zeichen.");
+                }
                 if (questions.stream().anyMatch(existing -> existing.id().equals(id))) {
                     throw new InvalidUploadException("Doppelte RFP-ID: " + id);
                 }
@@ -61,8 +85,7 @@ public class RfpParser {
         } catch (InvalidUploadException exception) {
             throw exception;
         } catch (IOException | RuntimeException exception) {
-            throw new InvalidUploadException("Die XLSX-Datei konnte nicht verarbeitet werden: "
-                    + exception.getMessage());
+            throw new InvalidUploadException("Die XLSX-Datei konnte nicht sicher verarbeitet werden.");
         }
     }
 

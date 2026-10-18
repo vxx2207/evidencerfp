@@ -134,7 +134,11 @@ export default function App() {
   async function updateQuestion(questionId: string, update: QuestionUpdate) {
     if (!analysis) return;
     try {
-      const updated = await gateway.updateQuestion(analysis.id, questionId, update);
+      const currentQuestion = analysis.questions.find((item) => item.id === questionId);
+      const updated = await gateway.updateQuestion(analysis.id, questionId, {
+        ...update,
+        expectedRevision: currentQuestion?.revision,
+      });
       setAnalysis((current) => current ? { ...current, questions: current.questions.map((item) => item.id === questionId ? updated : item) } : current);
       setToast(update.reviewStatus === 'FREIGEGEBEN' ? 'Antwort wurde freigegeben.' : update.reviewStatus === 'BLOCKIERT' ? 'Antwort wurde blockiert.' : 'Antwortentwurf gespeichert.');
       if (tourStep === 'export' && questionId === 'IAM-004' && update.reviewStatus && update.reviewStatus !== 'OFFEN') setView('review');

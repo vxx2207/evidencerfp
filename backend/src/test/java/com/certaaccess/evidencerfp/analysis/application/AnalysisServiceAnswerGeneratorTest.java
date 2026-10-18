@@ -6,6 +6,7 @@ import com.certaaccess.evidencerfp.analysis.domain.AnswerStatus;
 import com.certaaccess.evidencerfp.analysis.domain.EvidenceDocument;
 import com.certaaccess.evidencerfp.analysis.domain.QuestionResult;
 import com.certaaccess.evidencerfp.analysis.domain.ReviewStatus;
+import com.certaaccess.evidencerfp.analysis.infrastructure.InMemoryAnalysisRepository;
 import com.certaaccess.evidencerfp.evidence.EvidenceChunk;
 import com.certaaccess.evidencerfp.evidence.EvidenceExtractor;
 import com.certaaccess.evidencerfp.evidence.EvidenceRetriever;
@@ -24,9 +25,7 @@ import java.time.Instant;
 import java.time.ZoneOffset;
 import java.util.List;
 import java.util.Map;
-import java.util.Optional;
 import java.util.UUID;
-import java.util.concurrent.ConcurrentHashMap;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
@@ -50,7 +49,7 @@ class AnalysisServiceAnswerGeneratorTest {
                 new EvidenceDocument("source.pdf", "application/pdf", 1, null, false), List.of(chunk)));
         RecordingRetriever retriever = new RecordingRetriever();
         RecordingGenerator generator = new RecordingGenerator();
-        InMemoryRepository repository = new InMemoryRepository();
+        InMemoryAnalysisRepository repository = new InMemoryAnalysisRepository(new DemoAnalysisFactory());
         Clock clock = Clock.fixed(Instant.parse("2026-10-13T12:00:00Z"), ZoneOffset.UTC);
         AnalysisService service = new AnalysisService(repository, validator, parser, extractor, retriever,
                 generator, new IamControlEvaluator(clock), new ObjectMapper(), clock);
@@ -79,6 +78,35 @@ class AnalysisServiceAnswerGeneratorTest {
         });
     }
 
+    @Test
+    void providerFailureProducesATechnicalJobErrorAndNeverANotFoundAnswer() {
+        UploadValidator validator = mock(UploadValidator.class);
+        RfpParser parser = mock(RfpParser.class);
+        EvidenceExtractor extractor = mock(EvidenceExtractor.class);
+        MockMultipartFile rfp = new MockMultipartFile("rfp", "rfp.xlsx", "application/x-test", new byte[]{1});
+        MockMultipartFile evidence = new MockMultipartFile("evidence", "source.pdf", "application/pdf", new byte[]{2});
+        RfpQuestion question = new RfpQuestion("RFP-FAIL", "Ist MFA aktiv?", "Identität");
+        EvidenceChunk chunk = new EvidenceChunk(UUID.randomUUID(), "source.pdf", "application/pdf", "Seite 1",
+                "MFA ist aktiv.", null);
+        when(parser.parse(any(MultipartFile.class))).thenReturn(List.of(question));
+        when(extractor.extract(any(MultipartFile.class))).thenReturn(new ExtractedEvidence(
+                new EvidenceDocument("source.pdf", "application/pdf", 1, null, false), List.of(chunk)));
+        InMemoryAnalysisRepository repository = new InMemoryAnalysisRepository(new DemoAnalysisFactory());
+        Clock clock = Clock.fixed(Instant.parse("2026-10-13T12:00:00Z"), ZoneOffset.UTC);
+        AnswerGenerator failing = (ignoredQuestion, ignoredChunks) -> {
+            throw new AnswerGenerationException("PROVIDER_TIMEOUT", "Zeitlimit überschritten");
+        };
+        AnalysisService service = new AnalysisService(repository, validator, parser, extractor,
+                new RecordingRetriever(), failing, new IamControlEvaluator(clock), new ObjectMapper(), clock);
+
+        Analysis accepted = service.create("Providerfehler", rfp, List.of(evidence), null);
+        Analysis failed = service.get(accepted.id());
+
+        assertThat(failed.status()).isEqualTo(AnalysisStatus.FAILED);
+        assertThat(failed.questions()).isEmpty();
+        assertThat(service.getJob(accepted.id()).failureCode()).isEqualTo("PROVIDER_TIMEOUT");
+    }
+
     private static final class RecordingRetriever implements EvidenceRetriever {
         private boolean called;
 
@@ -101,11 +129,4 @@ class AnalysisServiceAnswerGeneratorTest {
         }
     }
 
-    private static final class InMemoryRepository implements AnalysisRepository {
-        private final Map<UUID, Analysis> values = new ConcurrentHashMap<>();
-
-        @Override public Analysis save(Analysis analysis) { values.put(analysis.id(), analysis); return analysis; }
-        @Override public Optional<Analysis> findById(UUID id) { return Optional.ofNullable(values.get(id)); }
-        @Override public boolean deleteById(UUID id) { return values.remove(id) != null; }
-    }
 }

@@ -2,9 +2,15 @@ package com.certaaccess.evidencerfp.analysis.api;
 
 import com.certaaccess.evidencerfp.analysis.application.AnalysisExporter;
 import com.certaaccess.evidencerfp.analysis.application.AnalysisCapacityExceededException;
+import com.certaaccess.evidencerfp.analysis.application.AnalysisNotReadyException;
 import com.certaaccess.evidencerfp.analysis.application.AnalysisService;
 import com.certaaccess.evidencerfp.analysis.application.DemoAnalysisFactory;
+import com.certaaccess.evidencerfp.analysis.application.EditConflictException;
 import com.certaaccess.evidencerfp.analysis.domain.Analysis;
+import com.certaaccess.evidencerfp.analysis.domain.AnalysisJob;
+import com.certaaccess.evidencerfp.analysis.domain.AnalysisJobStatus;
+import com.certaaccess.evidencerfp.analysis.domain.AnalysisPhase;
+import com.certaaccess.evidencerfp.analysis.domain.AnalysisStatus;
 import com.certaaccess.evidencerfp.analysis.domain.ApprovalBlockedException;
 import com.certaaccess.evidencerfp.analysis.domain.AnswerStatus;
 import com.certaaccess.evidencerfp.analysis.domain.Finding;
@@ -20,14 +26,18 @@ import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 
 import java.time.Clock;
+import java.time.Instant;
 import java.util.List;
 
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyList;
+import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.isNull;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doNothing;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
+import static org.mockito.Mockito.verify;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.multipart;
@@ -47,6 +57,8 @@ class AnalysisControllerTest {
         service = mock(AnalysisService.class);
         demo = new DemoAnalysisFactory().create();
         when(service.get(DemoAnalysisFactory.DEMO_ID)).thenReturn(demo);
+        when(service.getCompleted(DemoAnalysisFactory.DEMO_ID)).thenReturn(demo);
+        when(service.getJob(DemoAnalysisFactory.DEMO_ID)).thenReturn(completedJob());
         AnalysisController controller = new AnalysisController(service, new AnalysisExporter(),
                 new UploadValidationProperties(10_485_760, 52_428_800, 20),
                 new IamControlEvaluator(Clock.systemUTC()), "deterministic-demo", false);
@@ -60,7 +72,15 @@ class AnalysisControllerTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.mode").value("DETERMINISTIC_DEMO"))
                 .andExpect(jsonPath("$.demoAnalysisId").value(DemoAnalysisFactory.DEMO_ID.toString()))
-                .andExpect(jsonPath("$.iamRules.length()").value(3));
+                .andExpect(jsonPath("$.iamRules.length()").value(3))
+                .andExpect(jsonPath("$.limits.maxPdfPages").value(200))
+                .andExpect(jsonPath("$.limits.maxChunksPerFile").value(2000))
+                .andExpect(jsonPath("$.limits.maxRfpQuestions").value(500))
+                .andExpect(jsonPath("$.limits.maxOoxmlExpandedBytes").value(104857600))
+                .andExpect(jsonPath("$.limits.maxOoxmlCompressionRatio").value(100.0))
+                .andExpect(jsonPath("$.models.chat").value("deterministic-answer-v2"))
+                .andExpect(jsonPath("$.retrievalVersion").value("hybrid-pgvector-fts-rrf-v1"))
+                .andExpect(jsonPath("$.dataFlow.length()").value(6));
 
         mvc.perform(get("/api/v1/analyses/{id}/result", DemoAnalysisFactory.DEMO_ID))
                 .andExpect(status().isOk())
@@ -69,27 +89,42 @@ class AnalysisControllerTest {
                 .andExpect(jsonPath("$.findings.length()").value(6))
                 .andExpect(jsonPath("$.evidenceDocuments[0].passages.length()").isNumber())
                 .andExpect(jsonPath("$.reviewEvents.length()").value(24))
-                .andExpect(jsonPath("$.reviewEvents[0].provenance").value("GENERATED"));
+                .andExpect(jsonPath("$.reviewEvents[0].provenance").value("GENERATED"))
+                .andExpect(jsonPath("$.reviewRevision").value(0))
+                .andExpect(jsonPath("$.runMetadata.retrievalVersion").value("hybrid-pgvector-fts-rrf-v1"))
+                .andExpect(jsonPath("$.runMetadata.citationValidation").isNotEmpty());
     }
 
     @Test
     void acceptsMultipartAnalysisAndReturnsLocation() throws Exception {
-        when(service.create(isNull(), any(), anyList(), isNull())).thenReturn(demo);
+        when(service.create(isNull(), any(), anyList(), isNull(), eq("import-123"))).thenReturn(demo);
         MockMultipartFile rfp = new MockMultipartFile("rfp", "rfp.xlsx",
                 "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", new byte[]{1});
         MockMultipartFile evidence = new MockMultipartFile("evidence", "beleg.pdf",
                 "application/pdf", new byte[]{2});
 
-        mvc.perform(multipart("/api/v1/analyses").file(rfp).file(evidence))
+        mvc.perform(multipart("/api/v1/analyses").file(rfp).file(evidence)
+                        .header("Idempotency-Key", "import-123"))
                 .andExpect(status().isAccepted())
                 .andExpect(header().string("Location", "http://localhost/api/v1/analyses/"
                         + DemoAnalysisFactory.DEMO_ID))
                 .andExpect(jsonPath("$.progressPercent").value(100));
+        verify(service).create(isNull(), any(), anyList(), isNull(), eq("import-123"));
+    }
+
+    @Test
+    void blocksResultUntilThePersistentJobIsCompleted() throws Exception {
+        when(service.getCompleted(DemoAnalysisFactory.DEMO_ID))
+                .thenThrow(new AnalysisNotReadyException(AnalysisStatus.PROCESSING));
+
+        mvc.perform(get("/api/v1/analyses/{id}/result", DemoAnalysisFactory.DEMO_ID))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.code").value("ANALYSIS_NOT_READY"));
     }
 
     @Test
     void reportsABusyLocalAnalysisQueueAsServiceUnavailable() throws Exception {
-        when(service.create(isNull(), any(), anyList(), isNull()))
+        when(service.create(isNull(), any(), anyList(), isNull(), isNull()))
                 .thenThrow(new AnalysisCapacityExceededException());
         MockMultipartFile rfp = new MockMultipartFile("rfp", "rfp.xlsx",
                 "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", new byte[]{1});
@@ -103,11 +138,12 @@ class AnalysisControllerTest {
 
     @Test
     void blocksApprovalWhenEvidenceIsMissing() throws Exception {
-        when(service.updateQuestion(any(), any(), any(), any())).thenThrow(
+        when(service.updateQuestion(any(), any(), anyLong(), any(), any())).thenThrow(
                 new ApprovalBlockedException("Die Frage kann wegen blockierender Findings nicht freigegeben werden."));
 
         mvc.perform(patch("/api/v1/analyses/{id}/questions/{questionId}",
                         DemoAnalysisFactory.DEMO_ID, "RFP-018")
+                        .header("If-Match", "\"0\"")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"reviewStatus\":\"APPROVED\"}"))
                 .andExpect(status().isConflict())
@@ -115,18 +151,57 @@ class AnalysisControllerTest {
     }
 
     @Test
+    void requiresIfMatchForEveryReviewChange() throws Exception {
+        mvc.perform(patch("/api/v1/analyses/{id}/questions/{questionId}",
+                        DemoAnalysisFactory.DEMO_ID, "RFP-001")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"reviewStatus\":\"APPROVED\"}"))
+                .andExpect(status().isPreconditionRequired())
+                .andExpect(jsonPath("$.code").value("PRECONDITION_REQUIRED"));
+    }
+
+    @Test
+    void returnsEditConflictForAStaleQuestionRevision() throws Exception {
+        when(service.updateQuestion(any(), any(), eq(0L), any(), any()))
+                .thenThrow(new EditConflictException());
+
+        mvc.perform(patch("/api/v1/analyses/{id}/questions/{questionId}",
+                        DemoAnalysisFactory.DEMO_ID, "RFP-001")
+                        .header("If-Match", "\"0\"")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"reviewStatus\":\"APPROVED\"}"))
+                .andExpect(status().isPreconditionFailed())
+                .andExpect(jsonPath("$.code").value("EDIT_CONFLICT"));
+    }
+
+    @Test
     void doesNotMisclassifyUnexpectedIllegalStateAsApprovalConflict() throws Exception {
-        when(service.updateQuestion(any(), any(), any(), any())).thenThrow(
+        when(service.updateQuestion(any(), any(), anyLong(), any(), any())).thenThrow(
                 new IllegalStateException("interne technische Ursache"));
 
         mvc.perform(patch("/api/v1/analyses/{id}/questions/{questionId}",
                         DemoAnalysisFactory.DEMO_ID, "RFP-001")
+                        .header("If-Match", "\"0\"")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"reviewStatus\":\"APPROVED\"}"))
                 .andExpect(status().isInternalServerError())
                 .andExpect(jsonPath("$.code").value("INTERNAL_ERROR"))
                 .andExpect(jsonPath("$.detail").value(
                         "Die Anfrage konnte wegen eines internen Fehlers nicht verarbeitet werden."));
+    }
+
+    @Test
+    void returnsSafeProblemDetailForMalformedJson() throws Exception {
+        mvc.perform(patch("/api/v1/analyses/{id}/questions/{questionId}",
+                        DemoAnalysisFactory.DEMO_ID, "RFP-001")
+                        .header("If-Match", "\"0\"")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"reviewStatus\":"))
+                .andExpect(status().isBadRequest())
+                .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_PROBLEM_JSON))
+                .andExpect(jsonPath("$.code").value("INVALID_REQUEST"))
+                .andExpect(jsonPath("$.detail").value(
+                        "Die Anfrage ist unvollständig oder syntaktisch ungültig."));
     }
 
     @Test
@@ -159,5 +234,12 @@ class AnalysisControllerTest {
                     : ReviewStatus.APPROVED;
             analysis.updateQuestion(question.id(), null, decision);
         }
+    }
+
+    private AnalysisJob completedJob() {
+        Instant completedAt = demo.completedAt();
+        return new AnalysisJob(demo.id(), AnalysisJobStatus.COMPLETED, AnalysisPhase.COMPLETED,
+                100, 1, 2, null, null, completedAt, null, false,
+                demo.createdAt(), completedAt, demo.createdAt());
     }
 }

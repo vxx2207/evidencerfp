@@ -13,7 +13,7 @@
 
     <groupId>com.certaaccess</groupId>
     <artifactId>evidence-rfp-backend</artifactId>
-    <version>0.1.0</version>
+    <version>0.2.0</version>
     <name>EvidenceRFP Backend</name>
     <description>Belegbare Security-Fragebogenanalyse mit deterministischen IAM-Kontrollen</description>
 
@@ -38,6 +38,14 @@
         <dependency>
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-actuator</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-aspectj</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>io.micrometer</groupId>
+            <artifactId>micrometer-registry-prometheus</artifactId>
         </dependency>
         <dependency>
             <groupId>org.springframework.boot</groupId>
@@ -165,6 +173,14 @@
                                     <sources><source>src/ollama/java</source></sources>
                                 </configuration>
                             </execution>
+                            <execution>
+                                <id>add-ai-adapter-test-source</id>
+                                <phase>generate-test-sources</phase>
+                                <goals><goal>add-test-source</goal></goals>
+                                <configuration>
+                                    <sources><source>src/ai-test/java</source></sources>
+                                </configuration>
+                            </execution>
                         </executions>
                     </plugin>
                 </plugins>
@@ -202,6 +218,14 @@
                                 <goals><goal>add-source</goal></goals>
                                 <configuration>
                                     <sources><source>src/ollama/java</source></sources>
+                                </configuration>
+                            </execution>
+                            <execution>
+                                <id>add-ai-adapter-test-source</id>
+                                <phase>generate-test-sources</phase>
+                                <goals><goal>add-test-source</goal></goals>
+                                <configuration>
+                                    <sources><source>src/ai-test/java</source></sources>
                                 </configuration>
                             </execution>
                         </executions>

@@ -12,7 +12,7 @@ Diese Liste trennt lokal vollständig vorbereitete Arbeit von Schritten, die ers
 - [x] OpenAPI-Client neu generieren und Vertrag auf Drift prüfen
 - [x] deterministischen 80-Fälle-Qualitätsbericht erzeugen
 - [ ] Testcontainers-Suite mit Docker beziehungsweise in GitHub Actions ausführen
-- [ ] XLSX-Download zusätzlich in Excel oder LibreOffice öffnen
+- [x] XLSX-Download schreibgeschützt in Microsoft Excel 16.0 öffnen und Struktur/Stile prüfen
 - [x] Screenshots für Quellenpassage, Konflikt und IAM-Finding aktualisieren
 - [x] kurze animierte Tour im README ergänzen
 - [x] 90-Sekunden-Aufnahme in 1440 × 900 mit WebVTT-Untertiteln erstellen

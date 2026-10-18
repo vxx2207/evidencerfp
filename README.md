@@ -1,9 +1,9 @@
 # EvidenceRFP
 
-![Release](https://img.shields.io/badge/release-v0.2.0-0f766e)
-![CI](https://img.shields.io/badge/CI-GitHub_Actions_ready-2088ff)
-![GitHub Pages](https://img.shields.io/badge/demo-GitHub_Pages_ready-222222)
-![License](https://img.shields.io/badge/license-MIT-2f855a)
+[![Release](https://img.shields.io/github/v/release/vxx2207/evidencerfp?display_name=tag&sort=semver)](https://github.com/vxx2207/evidencerfp/releases/latest)
+[![CI](https://github.com/vxx2207/evidencerfp/actions/workflows/ci.yml/badge.svg)](https://github.com/vxx2207/evidencerfp/actions/workflows/ci.yml)
+[![Live-Demo](https://img.shields.io/badge/Live--Demo-GitHub%20Pages-0f766e)](https://vxx2207.github.io/evidencerfp/)
+[![License](https://img.shields.io/github/license/vxx2207/evidencerfp)](LICENSE)
 
 ![EvidenceRFP – Belegbare Security-Antworten](docs/assets/social-preview.png)
 
@@ -15,7 +15,7 @@
 
 EvidenceRFP unterstützt Technical-Sales-Teams dabei, wiederkehrende Security-Fragebögen schneller und belastbarer zu beantworten. Die Anwendung findet passende Aussagen in freigegebenen Produktunterlagen, zeigt die exakte Fundstelle, markiert Widersprüche und ergänzt dokumentbasierte Antworten um deterministische Identity-Security-Prüfungen.
 
-> **Schnelleinstieg:** Die Anwendung besitzt eine geführte **60-Sekunden-Demo**. Lokal starten, auf „60-Sekunden-Demo starten“ klicken und nacheinander verifizierte Quelle, Quellenkonflikt, bewusstes Nichtwissen, IAM-Finding und Evidence Pack erleben. Der GitHub-Pages-Workflow ist vorbereitet; der öffentliche Link wird nach dem ersten Push des noch nicht verbundenen Repositories ergänzt.
+> **Schnelleinstieg:** Die [öffentliche GitHub-Pages-Demo](https://vxx2207.github.io/evidencerfp/) öffnen, auf **„60-Sekunden-Demo starten“** klicken und nacheinander verifizierte Quelle, Quellenkonflikt, bewusstes Nichtwissen, IAM-Finding und Evidence Pack erleben.
 
 | 80 Golden-Set-Fälle | 100 % Recall@6 | 100 % technisch validierte Zitationen | 3 deterministische IAM-Regeln |
 |---:|---:|---:|---:|

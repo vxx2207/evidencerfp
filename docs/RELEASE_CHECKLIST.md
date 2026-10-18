@@ -8,6 +8,7 @@ Diese Liste trennt lokal vollständig vorbereitete Arbeit von Schritten, die ers
 - [x] Ollama- und OpenAI-Profile kompilieren
 - [x] GitHub-Pages-Artefakt lokal bauen
 - [x] 60-Sekunden-Tour, Deep Links, Reset und XLSX-Download per Playwright prüfen
+- [x] Browser-XLSX technisch und visuell prüfen: vier Blätter, lesbare Kopfzeilen, keine Formeln oder Formel-Fehler
 - [x] OpenAPI-Client neu generieren und Vertrag auf Drift prüfen
 - [x] deterministischen 80-Fälle-Qualitätsbericht erzeugen
 - [ ] Testcontainers-Suite mit Docker beziehungsweise in GitHub Actions ausführen

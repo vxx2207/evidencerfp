@@ -91,10 +91,12 @@ describe('DemoAnalysisGateway', () => {
 
     const archive = unzipSync(new Uint8Array(await blob.arrayBuffer()));
     const workbookXml = strFromU8(archive['xl/workbook.xml']);
+    const stylesXml = strFromU8(archive['xl/styles.xml']);
     expect(workbookXml).toContain('name="Antworten"');
     expect(workbookXml).toContain('name="IAM Findings"');
     expect(workbookXml).toContain('name="Quellen"');
     expect(workbookXml).toContain('name="Review"');
+    expect(stylesXml).toContain('<color rgb="FFFFFFFF"/>');
 
     const allXml = Object.entries(archive)
       .filter(([path]) => path.endsWith('.xml'))

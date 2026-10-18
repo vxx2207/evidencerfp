@@ -7,7 +7,7 @@ type CellValue = string | number;
 interface WorkbookCell {
   value: CellValue;
   fontWeight?: 'bold';
-  color?: string;
+  textColor?: string;
   backgroundColor?: string;
   align?: 'left' | 'center';
   verticalAlign?: 'top';
@@ -23,7 +23,7 @@ interface WorkbookSheet {
 
 const HEADER_STYLE = {
   fontWeight: 'bold',
-  color: '#FFFFFF',
+  textColor: '#FFFFFF',
   backgroundColor: '#14324A',
   align: 'left',
   verticalAlign: 'top',

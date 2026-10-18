@@ -9,11 +9,12 @@
 | `source/*.md` | Lesbare Ursprungsquellen für fünf fiktive Produktdokumente |
 | `source/rfp-fragen.md` | Lesbare Source of Truth für den 24-Fragen-RFP |
 | `identity-snapshot.json` | Synthetischer IAM-Tenant-Snapshot mit positiven und negativen Regelfällen |
-| `golden-set.json` | 20 deutsche Retrieval-Fragen mit erwarteten Quellen und Statuswerten |
+| `golden-set.json` | 20 deutsche Kernfragen mit je drei Paraphrasen: insgesamt 80 Evaluationsfälle |
 | `rfp-questions.json` | Maschinenlesbare Spiegelung der 24 Demo-Fragen |
 | `generated/` | Lokal erzeugte PDF-, DOCX- und XLSX-Fixtures; nicht versioniert |
+| `output/EvidenceRFP-Synthetic-Evidence-Pack.xlsx` | Geprüfter Browserexport mit Antworten, IAM-Findings, Quellen und Reviewstatus |
 
-Die Markdown-Dateien sind die nachvollziehbare Source of Truth. Binärdateien werden nicht ins Repository eingecheckt. Der Backend-`SampleDataGenerator` erzeugt lokal die textbasierten PDF-/DOCX-Dokumente und das XLSX aus diesen Quellen. Der konkrete Aufruf steht in [scripts/README.md](../scripts/README.md). Bei Änderungen müssen `source/rfp-fragen.md` und `rfp-questions.json` dieselben IDs, Kategorien und Fragen enthalten.
+Die Markdown-Dateien sind die nachvollziehbare Source of Truth. Generierte binäre **Eingabefixtures** bleiben außerhalb der Versionsverwaltung. Das kleine, vollständig synthetische Evidence Pack wird bewusst als überprüfbares Referenzergebnis versioniert. Der Backend-`SampleDataGenerator` erzeugt lokal die textbasierten PDF-/DOCX-Eingaben und das RFP-XLSX aus den Quellen. Der konkrete Aufruf steht in [scripts/README.md](../scripts/README.md). Bei Änderungen müssen `source/rfp-fragen.md` und `rfp-questions.json` dieselben IDs, Kategorien und Fragen enthalten.
 
 ## Absichtlich eingebaute Fälle
 
@@ -29,10 +30,10 @@ Die Markdown-Dateien sind die nachvollziehbare Source of Truth. Binärdateien we
 ```text
 Recall@6 = Fragen mit mindestens einer erwarteten Quelle in den Top 6
            ÷ alle beantwortbaren Fragen
-Ziel: Recall@6 >= 0,90
+Ziel: Recall@6 >= 0,95
 ```
 
-Der versionierte JUnit-Lauf erreicht im deterministischen Offline-Retriever aktuell **94,1 % (16/17)** und schlägt unter 90 % fehl. Zusätzlich prüft er, dass alle drei unbeantwortbaren Golden-Set-Fragen ohne Zitation `NOT_FOUND` ergeben.
+Die deterministische CI-Baseline wertet jede Kernfrage und ihre drei Paraphrasen aus. Sie erreicht aktuell **100 % Recall@6 (68/68 beantwortbare Fälle)**, eine **MRR von 97,8 %**, **100 % Status-Macro-F1**, **100 % Required-Term-Abdeckung** und **100 % Zitationspräzision**. Die zwölf Negativfälle erreichen für `NOT_FOUND` jeweils **100 % Precision und Recall**. Der versionierte Bericht und die Trennung zur optionalen echten Modell-/Hybrid-Auswertung sind in der [Evaluationsdokumentation](../docs/EVALUATION.md) beschrieben.
 
 Bei `PARTIAL` müssen sämtliche Einträge in `expectedSources` im Review sichtbar sein, bevor der Konflikt fachlich aufgelöst wird. Für `NOT_FOUND` darf keine Antwort als belegt erscheinen.
 

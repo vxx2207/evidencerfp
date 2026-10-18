@@ -16,6 +16,7 @@ Alle nennenswerten Änderungen an EvidenceRFP werden in dieser Datei dokumentier
 - Micrometer-/Prometheus-Metriken, sichere Fehlercodes und strukturierte Korrelationslogs
 - kompakter Techniknachweis in der Review-Oberfläche
 - aktuelle Konflikt-/IAM-Screenshots, animierte Kurztour und 90-Sekunden-Aufnahme mit WebVTT-Untertiteln
+- nativ in Excel geprüftes, synthetisches Beispiel-Evidence-Pack als direkt öffnbares Referenzergebnis
 
 ### Geändert
 

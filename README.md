@@ -36,6 +36,8 @@ EvidenceRFP unterstützt Technical-Sales-Teams dabei, wiederkehrende Security-Fr
 
 *Aktuelle Aufnahmen der geführten Demo bei 1440 × 900 Pixeln; vollständig synthetisch.*
 
+Das zugehörige [synthetische Beispiel-Evidence-Pack](examples/output/EvidenceRFP-Synthetic-Evidence-Pack.xlsx) lässt sich direkt in Excel öffnen und enthält die vier Blätter `Antworten`, `IAM Findings`, `Quellen` und `Review`.
+
 ## Der 60-Sekunden-Scan
 
 | Recruiter-Frage | Antwort |

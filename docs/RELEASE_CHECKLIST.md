@@ -11,7 +11,7 @@ Diese Liste trennt lokal vollständig vorbereitete Arbeit von Schritten, die ers
 - [x] Browser-XLSX technisch und visuell prüfen: vier Blätter, lesbare Kopfzeilen, keine Formeln oder Formel-Fehler
 - [x] OpenAPI-Client neu generieren und Vertrag auf Drift prüfen
 - [x] deterministischen 80-Fälle-Qualitätsbericht erzeugen
-- [ ] Testcontainers-Suite mit Docker beziehungsweise in GitHub Actions ausführen
+- [x] Testcontainers-Suite mit Docker beziehungsweise in GitHub Actions ausführen
 - [x] XLSX-Download schreibgeschützt in Microsoft Excel 16.0 öffnen und Struktur/Stile prüfen
 - [x] geprüftes synthetisches Beispiel-Evidence-Pack im Repository bereitstellen
 - [x] CI so konfigurieren, dass übersprungene Testcontainers-Tests den GitHub-Lauf fehlschlagen lassen

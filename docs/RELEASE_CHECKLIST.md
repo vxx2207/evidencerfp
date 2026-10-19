@@ -26,12 +26,12 @@ Diese Liste trennt lokal vollständig vorbereitete Arbeit von Schritten, die ers
 
 - [x] Remote `origin` setzen und `main` pushen
 - [x] Repository-Beschreibung, Homepage und Topics setzen
-- [ ] optimiertes `docs/assets/social-preview.jpg` als Social Preview setzen
+- [x] optimiertes `docs/assets/social-preview.jpg` als Social Preview setzen
 - [x] GitHub Pages auf „GitHub Actions“ stellen und Deployment prüfen
 - [x] echten Live-Demo-Link in README und Repository-Metadaten eintragen
 - [x] Badge-URLs auf den tatsächlichen Owner-/Repository-Pfad umstellen
-- [ ] `main` und annotierten Tag `v0.2.0` pushen
-- [ ] automatisch erzeugtes GitHub Release mit Demo-Artefakten prüfen
+- [x] `main` und annotierten Tag `v0.2.0` pushen
+- [x] automatisch erzeugtes GitHub Release mit Demo-Artefakten prüfen
 
 ## Persönliches Portfolio
 

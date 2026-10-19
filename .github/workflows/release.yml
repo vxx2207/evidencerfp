@@ -24,12 +24,21 @@ jobs:
       - name: Repository und Tags auschecken
         uses: actions/checkout@v4
         with:
+          ref: ${{ github.ref }}
           fetch-depth: 0
+          fetch-tags: true
 
-      - name: Release-Vertrag prüfen
+      - name: Annotierten Release-Tag prüfen
         shell: bash
         run: |
-          test "$(git cat-file -t "$GITHUB_REF_NAME")" = "tag"
+          test "$GITHUB_REF_TYPE" = "tag"
+          git fetch --force --tags origin
+          test "$(git cat-file -t "refs/tags/$GITHUB_REF_NAME")" = "tag"
+          test "$(git rev-parse "refs/tags/${GITHUB_REF_NAME}^{}")" = "$GITHUB_SHA"
+
+      - name: Release-Artefakte prüfen
+        shell: bash
+        run: |
           test -f "docs/releases/${GITHUB_REF_NAME}.md"
           test -f examples/output/EvidenceRFP-Synthetic-Evidence-Pack.xlsx
           test -f docs/assets/evidencerfp-90s.webm

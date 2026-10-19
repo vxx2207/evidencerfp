@@ -6,6 +6,7 @@ import com.certaaccess.evidencerfp.analysis.domain.AnalysisJobStatus;
 import com.certaaccess.evidencerfp.analysis.domain.AnalysisPhase;
 import com.certaaccess.evidencerfp.analysis.domain.AnalysisStatus;
 import com.certaaccess.evidencerfp.analysis.domain.ReviewStatus;
+import com.certaaccess.evidencerfp.analysis.application.AnalysisStatusSnapshot;
 
 import java.time.Instant;
 import java.util.UUID;
@@ -47,5 +48,10 @@ public record AnalysisStatusResponse(
         return new AnalysisStatusResponse(analysis.id(), analysis.status(), job.progressPercent(),
                 job.phase().name(), job.attempt(), job.updatedAt(), job.heartbeatAt(), job.failureCode(),
                 analysis.createdAt(), analysis.completedAt(), analysis.questions().size(), reviewed);
+    }
+
+    public static AnalysisStatusResponse from(AnalysisStatusSnapshot snapshot) {
+        return snapshot.job().map(job -> from(snapshot.analysis(), job))
+                .orElseGet(() -> from(snapshot.analysis()));
     }
 }

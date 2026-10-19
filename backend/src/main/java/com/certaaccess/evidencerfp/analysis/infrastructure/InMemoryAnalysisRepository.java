@@ -3,6 +3,7 @@ package com.certaaccess.evidencerfp.analysis.infrastructure;
 import com.certaaccess.evidencerfp.analysis.application.AnalysisRepository;
 import com.certaaccess.evidencerfp.analysis.application.AnalysisNotReadyException;
 import com.certaaccess.evidencerfp.analysis.application.AnalysisSubmission;
+import com.certaaccess.evidencerfp.analysis.application.AnalysisStatusSnapshot;
 import com.certaaccess.evidencerfp.analysis.application.DemoAnalysisFactory;
 import com.certaaccess.evidencerfp.analysis.application.EditConflictException;
 import com.certaaccess.evidencerfp.analysis.application.IdempotencyKeyReusedException;
@@ -33,6 +34,7 @@ public class InMemoryAnalysisRepository implements AnalysisRepository {
     private final ConcurrentMap<UUID, AnalysisJob> jobs = new ConcurrentHashMap<>();
     private final ConcurrentMap<UUID, List<AnalysisUpload>> uploads = new ConcurrentHashMap<>();
     private final ConcurrentMap<String, IdempotencyRecord> idempotency = new ConcurrentHashMap<>();
+    private final ConcurrentMap<UUID, CleanupTask> cleanupTasks = new ConcurrentHashMap<>();
     private final DemoAnalysisFactory demoAnalysisFactory;
 
     public InMemoryAnalysisRepository(DemoAnalysisFactory demoAnalysisFactory) {
@@ -83,6 +85,13 @@ public class InMemoryAnalysisRepository implements AnalysisRepository {
     }
 
     @Override
+    public synchronized Optional<AnalysisStatusSnapshot> findStatusSnapshotById(UUID id) {
+        Analysis analysis = analyses.get(id);
+        if (analysis == null) return Optional.empty();
+        return Optional.of(new AnalysisStatusSnapshot(analysis, Optional.ofNullable(jobs.get(id))));
+    }
+
+    @Override
     public List<AnalysisUpload> findUploads(UUID analysisId) {
         return uploads.getOrDefault(analysisId, List.of());
     }
@@ -116,6 +125,7 @@ public class InMemoryAnalysisRepository implements AnalysisRepository {
                 analyses.put(id, new Analysis(analysis.id(), analysis.customerName(), analysis.synthetic(),
                         AnalysisStatus.FAILED, analysis.createdAt(), now, List.of(), List.of(), List.of()));
             }
+            scheduleCleanup(id, now);
         }
         return exhausted;
     }
@@ -143,7 +153,7 @@ public class InMemoryAnalysisRepository implements AnalysisRepository {
     public synchronized boolean renewLease(UUID analysisId, String leaseOwner, Instant heartbeatAt,
                                            Instant leaseUntil) {
         AnalysisJob current = jobs.get(analysisId);
-        if (!owned(current, leaseOwner)) return false;
+        if (!ownedAt(current, leaseOwner, heartbeatAt)) return false;
         jobs.put(analysisId, copy(current, current.phase(), current.progressPercent(), heartbeatAt,
                 leaseUntil, current.status(), current.failureCode(), heartbeatAt));
         return true;
@@ -153,7 +163,7 @@ public class InMemoryAnalysisRepository implements AnalysisRepository {
     public synchronized boolean advanceJob(UUID analysisId, String leaseOwner, AnalysisPhase phase,
                                            int progressPercent, Instant now, Instant leaseUntil) {
         AnalysisJob current = jobs.get(analysisId);
-        if (!owned(current, leaseOwner)) return false;
+        if (!ownedAt(current, leaseOwner, now)) return false;
         jobs.put(analysisId, copy(current, phase, progressPercent, now, leaseUntil,
                 AnalysisJobStatus.PROCESSING, null, now));
         return true;
@@ -162,10 +172,11 @@ public class InMemoryAnalysisRepository implements AnalysisRepository {
     @Override
     public synchronized boolean completeJob(Analysis analysis, String leaseOwner, Instant now) {
         AnalysisJob current = jobs.get(analysis.id());
-        if (!owned(current, leaseOwner) || !analyses.containsKey(analysis.id())) return false;
+        if (!ownedAt(current, leaseOwner, now) || !analyses.containsKey(analysis.id())) return false;
         analyses.put(analysis.id(), analysis);
         jobs.put(analysis.id(), copy(current, AnalysisPhase.COMPLETED, 100, now, null,
                 AnalysisJobStatus.COMPLETED, null, now));
+        scheduleCleanup(analysis.id(), now);
         return true;
     }
 
@@ -173,11 +184,12 @@ public class InMemoryAnalysisRepository implements AnalysisRepository {
     public synchronized boolean failJob(UUID analysisId, String leaseOwner, String failureCode, Instant now) {
         AnalysisJob current = jobs.get(analysisId);
         Analysis existing = analyses.get(analysisId);
-        if (!owned(current, leaseOwner) || existing == null) return false;
+        if (!ownedAt(current, leaseOwner, now) || existing == null) return false;
         jobs.put(analysisId, copy(current, AnalysisPhase.FAILED, current.progressPercent(), now, null,
                 AnalysisJobStatus.FAILED, failureCode, now));
         analyses.put(analysisId, new Analysis(existing.id(), existing.customerName(), existing.synthetic(),
                 AnalysisStatus.FAILED, existing.createdAt(), now, List.of(), List.of(), List.of()));
+        scheduleCleanup(analysisId, now);
         return true;
     }
 
@@ -199,29 +211,80 @@ public class InMemoryAnalysisRepository implements AnalysisRepository {
     }
 
     @Override
-    public void deleteUploadMetadata(UUID analysisId) {
-        uploads.remove(analysisId);
+    public synchronized List<UUID> claimCleanupTasks(String leaseOwner, Instant now,
+                                                     Instant leaseUntil, int maxResults) {
+        List<UUID> claimed = cleanupTasks.values().stream()
+                .filter(task -> task.status() == CleanupStatus.PENDING
+                        && !task.nextAttemptAt().isAfter(now)
+                        || task.status() == CleanupStatus.PROCESSING
+                        && task.leaseUntil() != null && !task.leaseUntil().isAfter(now))
+                .sorted(Comparator.comparing(CleanupTask::createdAt))
+                .limit(maxResults)
+                .map(CleanupTask::analysisId)
+                .toList();
+        for (UUID analysisId : claimed) {
+            CleanupTask current = cleanupTasks.get(analysisId);
+            cleanupTasks.put(analysisId, new CleanupTask(analysisId, CleanupStatus.PROCESSING,
+                    current.attemptCount() + 1, current.nextAttemptAt(), leaseOwner, leaseUntil,
+                    current.createdAt(), now, null));
+        }
+        return claimed;
     }
 
     @Override
-    public synchronized boolean deleteById(UUID id) {
+    public synchronized boolean completeCleanup(UUID analysisId, String leaseOwner, Instant now) {
+        CleanupTask current = cleanupTasks.get(analysisId);
+        if (!cleanupOwnedBy(current, leaseOwner)) return false;
+        uploads.remove(analysisId);
+        if (!analyses.containsKey(analysisId)) jobs.remove(analysisId);
+        cleanupTasks.remove(analysisId);
+        return true;
+    }
+
+    @Override
+    public synchronized boolean retryCleanup(UUID analysisId, String leaseOwner, Instant now,
+                                             Instant nextAttemptAt, String failureCode) {
+        CleanupTask current = cleanupTasks.get(analysisId);
+        if (!cleanupOwnedBy(current, leaseOwner)) return false;
+        cleanupTasks.put(analysisId, new CleanupTask(analysisId, CleanupStatus.PENDING,
+                current.attemptCount(), nextAttemptAt, null, null,
+                current.createdAt(), now, failureCode));
+        return true;
+    }
+
+    @Override
+    public synchronized boolean isUploadStorageTracked(UUID analysisId) {
+        return analyses.containsKey(analysisId) || cleanupTasks.containsKey(analysisId);
+    }
+
+    @Override
+    public synchronized boolean deleteById(UUID id, Instant now) {
         Analysis removed = analyses.remove(id);
         if (removed == null) return false;
         AnalysisJob current = jobs.get(id);
         if (current != null) {
-            Instant now = Instant.now();
             jobs.put(id, copy(current, AnalysisPhase.CANCELLED, current.progressPercent(), now, null,
                     AnalysisJobStatus.CANCELLED, null, now));
         }
-        jobs.remove(id);
-        uploads.remove(id);
+        scheduleCleanup(id, now);
         idempotency.entrySet().removeIf(entry -> entry.getValue().analysisId().equals(id));
         return true;
     }
 
-    private boolean owned(AnalysisJob job, String leaseOwner) {
+    private void scheduleCleanup(UUID analysisId, Instant now) {
+        cleanupTasks.putIfAbsent(analysisId, new CleanupTask(analysisId, CleanupStatus.PENDING,
+                0, now, null, null, now, now, null));
+    }
+
+    private boolean cleanupOwnedBy(CleanupTask task, String leaseOwner) {
+        return task != null && task.status() == CleanupStatus.PROCESSING
+                && leaseOwner.equals(task.leaseOwner());
+    }
+
+    private boolean ownedAt(AnalysisJob job, String leaseOwner, Instant now) {
         return job != null && job.status() == AnalysisJobStatus.PROCESSING && !job.cancelRequested()
-                && leaseOwner.equals(job.leaseOwner());
+                && leaseOwner.equals(job.leaseOwner()) && job.leaseUntil() != null
+                && job.leaseUntil().isAfter(now);
     }
 
     private AnalysisJob copy(AnalysisJob current, AnalysisPhase phase, int progress, Instant heartbeat,
@@ -233,4 +296,10 @@ public class InMemoryAnalysisRepository implements AnalysisRepository {
     }
 
     private record IdempotencyRecord(String requestHash, UUID analysisId) { }
+
+    private enum CleanupStatus { PENDING, PROCESSING }
+
+    private record CleanupTask(UUID analysisId, CleanupStatus status, int attemptCount,
+                               Instant nextAttemptAt, String leaseOwner, Instant leaseUntil,
+                               Instant createdAt, Instant updatedAt, String failureCode) { }
 }

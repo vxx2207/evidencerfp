@@ -11,7 +11,7 @@ spring:
           model: ${OLLAMA_EMBEDDING_MODEL:bge-m3}
 
 server:
-  address: ${SERVER_ADDRESS:127.0.0.1}
+  address: 127.0.0.1
 
 evidence-rfp:
   ai:

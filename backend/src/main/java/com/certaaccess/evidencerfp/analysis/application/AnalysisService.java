@@ -57,6 +57,9 @@ import java.util.concurrent.atomic.AtomicBoolean;
 public class AnalysisService {
     private static final Logger LOGGER = LoggerFactory.getLogger(AnalysisService.class);
     private static final String GENERIC_FAILURE_CODE = "ANALYSIS_PROCESSING_FAILED";
+    private static final String CLEANUP_FAILURE_CODE = "UPLOAD_CLEANUP_FAILED";
+    private static final Duration CLEANUP_RETRY_DELAY = Duration.ofSeconds(30);
+    private static final Duration ORPHAN_GRACE_PERIOD = Duration.ofHours(1);
 
     private final AnalysisRepository repository;
     private final UploadValidator uploadValidator;
@@ -172,11 +175,11 @@ public class AnalysisService {
     @Scheduled(fixedDelayString = "${evidence-rfp.analysis.recovery-interval-ms:5000}",
             initialDelayString = "${evidence-rfp.analysis.recovery-initial-delay-ms:1000}")
     public void recoverRunnableJobs() {
-        for (UUID id : repository.failExhaustedJobs(clock.instant())) {
-            safeDeleteUploads(id);
-            repository.deleteUploadMetadata(id);
-        }
-        for (UUID id : repository.findRunnableJobIds(clock.instant(), recoveryBatchSize)) dispatch(id);
+        Instant now = clock.instant();
+        repository.failExhaustedJobs(now);
+        processCleanupTasks(now);
+        sweepOrphanedUploadDirectories(now);
+        for (UUID id : repository.findRunnableJobIds(now, recoveryBatchSize)) dispatch(id);
     }
 
     private void dispatch(UUID analysisId) {
@@ -230,8 +233,7 @@ public class AnalysisService {
         } finally {
             if (heartbeat != null) heartbeat.cancel(false);
             if (terminalTransition || analysisDeleted) {
-                safeDeleteUploads(analysisId);
-                repository.deleteUploadMetadata(analysisId);
+                processCleanupTasks(clock.instant());
             }
         }
     }
@@ -314,6 +316,11 @@ public class AnalysisService {
         return repository.findJobByAnalysisId(id).orElseGet(() -> syntheticJobFor(analysis));
     }
 
+    public AnalysisStatusSnapshot getStatusSnapshot(UUID id) {
+        return repository.findStatusSnapshotById(id)
+                .orElseThrow(() -> new AnalysisNotFoundException(id));
+    }
+
     public QuestionResult updateQuestion(UUID analysisId, String questionId, long expectedRevision,
                                          String answer, ReviewStatus reviewStatus) {
         QuestionResult updated = repository.updateQuestion(analysisId, questionId, expectedRevision,
@@ -334,8 +341,9 @@ public class AnalysisService {
     }
 
     public void delete(UUID id) {
-        if (!repository.deleteById(id)) throw new AnalysisNotFoundException(id);
-        safeDeleteUploads(id);
+        Instant now = clock.instant();
+        if (!repository.deleteById(id, now)) throw new AnalysisNotFoundException(id);
+        processCleanupTasks(now);
     }
 
     private IamSnapshot parseIamSnapshot(MultipartFile file) {
@@ -421,6 +429,67 @@ public class AnalysisService {
         } catch (RuntimeException exception) {
             LOGGER.warn("Temporäre Dateien für Analyse {} konnten nicht vollständig entfernt werden",
                     analysisId, exception);
+        }
+    }
+
+    private void processCleanupTasks(Instant now) {
+        String cleanupOwner = workerInstanceId + ":cleanup:" + UUID.randomUUID();
+        List<UUID> claimed;
+        try {
+            claimed = repository.claimCleanupTasks(cleanupOwner, now, now.plus(leaseDuration),
+                    recoveryBatchSize);
+        } catch (RuntimeException exception) {
+            LOGGER.warn("Persistente Upload-Bereinigung konnte nicht geclaimt werden", exception);
+            return;
+        }
+        for (UUID analysisId : claimed) {
+            try {
+                uploadStorage.delete(analysisId);
+                if (!repository.completeCleanup(analysisId, cleanupOwner, clock.instant())) {
+                    LOGGER.info("Cleanup-Lease für Analyse {} wurde vor Abschluss übernommen",
+                            analysisId);
+                }
+            } catch (RuntimeException exception) {
+                Instant failedAt = clock.instant();
+                try {
+                    repository.retryCleanup(analysisId, cleanupOwner, failedAt,
+                            failedAt.plus(CLEANUP_RETRY_DELAY), CLEANUP_FAILURE_CODE);
+                } catch (RuntimeException persistenceFailure) {
+                    exception.addSuppressed(persistenceFailure);
+                }
+                LOGGER.atWarn().addKeyValue("analysisId", analysisId)
+                        .addKeyValue("phase", "CLEANUP")
+                        .addKeyValue("failureCode", CLEANUP_FAILURE_CODE)
+                        .log("Persistente Upload-Bereinigung wird wiederholt", exception);
+            }
+        }
+    }
+
+    private void sweepOrphanedUploadDirectories(Instant now) {
+        try (var candidates = uploadStorage.streamStaleAnalysisDirectories(
+                now.minus(ORPHAN_GRACE_PERIOD))) {
+            var iterator = candidates.iterator();
+            int removed = 0;
+            while (iterator.hasNext() && removed < recoveryBatchSize) {
+                UUID analysisId = iterator.next();
+                try {
+                    if (!repository.isUploadStorageTracked(analysisId)) {
+                        uploadStorage.delete(analysisId);
+                        removed++;
+                        LOGGER.atInfo().addKeyValue("analysisId", analysisId)
+                                .addKeyValue("phase", "ORPHAN_CLEANUP")
+                                .log("Verwaistes Upload-Verzeichnis entfernt");
+                    }
+                } catch (RuntimeException exception) {
+                    LOGGER.atWarn().addKeyValue("analysisId", analysisId)
+                            .addKeyValue("phase", "ORPHAN_CLEANUP")
+                            .log("Verwaistes Upload-Verzeichnis bleibt für den nächsten Lauf erhalten",
+                                    exception);
+                }
+            }
+        } catch (RuntimeException exception) {
+            LOGGER.warn("Lokaler Analysespeicher konnte nicht auf verwaiste Uploads geprüft werden",
+                    exception);
         }
     }
 

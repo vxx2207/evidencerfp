@@ -259,7 +259,7 @@ export type DeleteAnalysisError = DeleteAnalysisErrors[keyof DeleteAnalysisError
 
 export type DeleteAnalysisResponses = {
     /**
-     * Analyse und Job wurden atomar abgebrochen und gelöscht
+     * Analyse und Job wurden atomar abgebrochen und für restart-sicheren Cleanup verborgen
      */
     204: void;
 };
@@ -342,6 +342,14 @@ export type UpdateQuestionData = {
 
 export type UpdateQuestionErrors = {
     /**
+     * Upload oder Anfrage wurde kontrolliert abgelehnt
+     */
+    400: Problem;
+    /**
+     * Analyse oder Frage existiert nicht
+     */
+    404: Problem;
+    /**
      * Idempotenz-, Zustands-, Freigabe- oder Review-Konflikt
      */
     409: Problem;
@@ -376,6 +384,10 @@ export type ExportEvidencePackData = {
 };
 
 export type ExportEvidencePackErrors = {
+    /**
+     * Analyse oder Frage existiert nicht
+     */
+    404: Problem;
     /**
      * Idempotenz-, Zustands-, Freigabe- oder Review-Konflikt
      */

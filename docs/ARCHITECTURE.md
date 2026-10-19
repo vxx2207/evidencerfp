@@ -21,6 +21,8 @@ flowchart TB
     LIVE --> API[REST API /api/v1]
     API --> STORE[Upload-Speicher]
     API --> JOB[(analysis_job + Lease)]
+    JOB --> CLEAN[(analysis_cleanup_task + Lease)]
+    CLEAN --> STORE
     JOB --> WORKER[Worker + Recovery]
     WORKER --> PARSE[gehärtete Parser]
     PARSE --> CHUNK[450/60 Token Chunking]
@@ -51,16 +53,27 @@ flowchart TB
    abgelaufenen Versuch endet er mit `JOB_RETRIES_EXHAUSTED`.
 6. Nur der aktuelle Lease-Besitzer kann per Compare-and-Set aus `PROCESSING` finalisieren.
    DELETE bricht Job und Analyse atomar ab; ein alter Worker kann die Analyse nicht neu anlegen.
-7. Rohdateien werden nach Erfolg, Fehler oder Abbruch entfernt. Teilergebnisse eines Versuchs
-   werden nicht als fertiges Ergebnis verwendet.
+7. Erfolg, Fehler und Abbruch legen in derselben Datenbanktransaktion einen dauerhaften
+   Cleanup-Auftrag an. Ein Cleanup-Worker löscht die Rohdateien und entfernt erst danach die
+   Uploadmetadaten. Sein eigener Lease kann nach einem Absturz übernommen werden; fehlgeschlagene
+   Löschungen bleiben mit sicherem Fehlercode und erneutem Ausführungszeitpunkt erhalten.
+8. Ein zusätzlicher, lazy lesender Sweeper entfernt UUID-Verzeichnisse, die seit mindestens einer Stunde keine
+   zugehörige Analyse und keinen offenen Cleanup-Auftrag mehr besitzen. Das deckt einen Absturz
+   zwischen Dateispeicherung und Jobregistrierung ab. Teilergebnisse eines Analyseversuchs werden
+   nie als fertiges Ergebnis verwendet.
 
 ## Dokument- und Retrieval-Pipeline
 
 PDF ist auf 200 Seiten begrenzt. Pro Datei gelten außerdem eine Million extrahierte Zeichen und
 2.000 Chunks. OOXML darf dekomprimiert höchstens 100 MB, 2.000 ZIP-Einträge und ein Verhältnis
-von 100:1 erreichen. Parser laufen höchstens 20 Sekunden. DOCX/XLSX werden über ihre
-verpflichtenden OOXML-Bestandteile erkannt; Makros, OLE, externe Beziehungen, Verschlüsselung,
-doppelte Einträge und Pfad-Traversal führen zu einer kontrollierten Ablehnung.
+von 100:1 erreichen. Ein Bulkhead lässt höchstens vier Parser gleichzeitig und acht weitere in
+der Queue zu; der Aufrufer bricht das Warten nach 20 Sekunden ab. Der JVM-Interrupt ist für
+nicht-kooperativen Bibliothekscode nur Best Effort, weshalb eine harte Abbruchgarantie einen
+separaten Sandbox-Prozess erfordert. DOCX/XLSX werden über ihre verpflichtenden
+OOXML-Bestandteile erkannt; Makros, OLE, externe Beziehungen, Verschlüsselung, doppelte Einträge
+und Pfad-Traversal führen zu einer kontrollierten Ablehnung. Persistierte PDFs und XLSX-Dateien
+werden über den erneut validierten Storage-Pfad statt über eine vollständige Heap-Kopie geöffnet;
+das PDF-Zeichenbudget wird bereits während der seitweisen Textextraktion erzwungen.
 
 Chunks orientieren sich an Abschnitten und Sätzen, sind höchstens 450 Tokens lang und überlappen
 um 60 Tokens. Ihre UUID wird deterministisch aus Dokumenthash, Fundstelle und normalisiertem
@@ -79,7 +92,7 @@ Schemafehler beenden die Analyse technisch und werden nie zu `NOT_FOUND` umgedeu
 
 ## Konsistenz und API-Vertrag
 
-- Vollständige Analyse- und Exportansichten werden als `REPEATABLE_READ`-Snapshot geladen.
+- Vollständige Analyse-, Status- und Exportansichten werden als `REPEATABLE_READ`-Snapshot geladen.
 - Jede Frage besitzt eine Revision. PATCH verlangt `If-Match`; ohne Header folgt 428, bei einer
   alten Revision 412 `EDIT_CONFLICT`.
 - Frage und Audit-Ereignis mit Vorher-/Nachher-Werten und Provenienz werden in derselben
@@ -94,8 +107,8 @@ Schemafehler beenden die Analyse technisch und werden nie zu `NOT_FOUND` umgedeu
 Micrometer misst Parser, Chunking, Embedding, Retrieval, Generierung, Verifikation und Export.
 Zähler erfassen Antwortstatus, verworfene Zitationen, Parserablehnungen und Fehlercodes; Gauges
 zeigen aktive Worker und Queue. Strukturierte Logs enthalten Korrelations-, Analyse-, Frage- und
-Phasenkennung, aber keine Dokumenttexte. Alle Backendprofile binden standardmäßig ausschließlich
-an `127.0.0.1`.
+Phasenkennung, aber keine Dokumenttexte. Ein Webserver-Customizer erzwingt für alle Backendprofile
+`127.0.0.1`, auch wenn eine externe Konfiguration eine andere Adresse vorgibt.
 
 ## Profile und Grenzen
 

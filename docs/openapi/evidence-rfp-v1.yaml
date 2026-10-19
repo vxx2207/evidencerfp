@@ -70,7 +70,7 @@ paths:
     delete:
       operationId: deleteAnalysis
       responses:
-        '204': { description: Analyse und Job wurden atomar abgebrochen und gelöscht }
+        '204': { description: Analyse und Job wurden atomar abgebrochen und für restart-sicheren Cleanup verborgen }
         '404': { $ref: '#/components/responses/NotFound' }
   /api/v1/analyses/{id}/result:
     parameters:
@@ -104,6 +104,7 @@ paths:
           application/json:
             schema:
               type: object
+              minProperties: 1
               properties:
                 answer: { type: string }
                 reviewStatus: { $ref: '#/components/schemas/ReviewStatus' }
@@ -115,6 +116,8 @@ paths:
           content:
             application/json:
               schema: { $ref: '#/components/schemas/Question' }
+        '400': { $ref: '#/components/responses/InvalidInput' }
+        '404': { $ref: '#/components/responses/NotFound' }
         '412': { $ref: '#/components/responses/EditConflict' }
         '428': { $ref: '#/components/responses/PreconditionRequired' }
         '409': { $ref: '#/components/responses/Conflict' }
@@ -129,6 +132,7 @@ paths:
           content:
             application/vnd.openxmlformats-officedocument.spreadsheetml.sheet:
               schema: { type: string, format: binary }
+        '404': { $ref: '#/components/responses/NotFound' }
         '409': { $ref: '#/components/responses/Conflict' }
 components:
   parameters:

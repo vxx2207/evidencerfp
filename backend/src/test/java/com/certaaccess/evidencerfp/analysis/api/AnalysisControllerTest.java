@@ -4,6 +4,7 @@ import com.certaaccess.evidencerfp.analysis.application.AnalysisExporter;
 import com.certaaccess.evidencerfp.analysis.application.AnalysisCapacityExceededException;
 import com.certaaccess.evidencerfp.analysis.application.AnalysisNotReadyException;
 import com.certaaccess.evidencerfp.analysis.application.AnalysisService;
+import com.certaaccess.evidencerfp.analysis.application.AnalysisStatusSnapshot;
 import com.certaaccess.evidencerfp.analysis.application.DemoAnalysisFactory;
 import com.certaaccess.evidencerfp.analysis.application.EditConflictException;
 import com.certaaccess.evidencerfp.analysis.domain.Analysis;
@@ -28,6 +29,7 @@ import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 import java.time.Clock;
 import java.time.Instant;
 import java.util.List;
+import java.util.Optional;
 
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyList;
@@ -36,6 +38,7 @@ import static org.mockito.ArgumentMatchers.isNull;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doNothing;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.when;
 import static org.mockito.Mockito.verify;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
@@ -59,6 +62,8 @@ class AnalysisControllerTest {
         when(service.get(DemoAnalysisFactory.DEMO_ID)).thenReturn(demo);
         when(service.getCompleted(DemoAnalysisFactory.DEMO_ID)).thenReturn(demo);
         when(service.getJob(DemoAnalysisFactory.DEMO_ID)).thenReturn(completedJob());
+        when(service.getStatusSnapshot(DemoAnalysisFactory.DEMO_ID)).thenReturn(
+                new AnalysisStatusSnapshot(demo, Optional.of(completedJob())));
         AnalysisController controller = new AnalysisController(service, new AnalysisExporter(),
                 new UploadValidationProperties(10_485_760, 52_428_800, 20),
                 new IamControlEvaluator(Clock.systemUTC()), "deterministic-demo", false);
@@ -110,6 +115,20 @@ class AnalysisControllerTest {
                         + DemoAnalysisFactory.DEMO_ID))
                 .andExpect(jsonPath("$.progressPercent").value(100));
         verify(service).create(isNull(), any(), anyList(), isNull(), eq("import-123"));
+        verify(service).getStatusSnapshot(DemoAnalysisFactory.DEMO_ID);
+        verify(service, never()).getJob(DemoAnalysisFactory.DEMO_ID);
+    }
+
+    @Test
+    void readsAnalysisAndJobAsOneStatusSnapshot() throws Exception {
+        mvc.perform(get("/api/v1/analyses/{id}", DemoAnalysisFactory.DEMO_ID))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.status").value("COMPLETED"))
+                .andExpect(jsonPath("$.phase").value("COMPLETED"));
+
+        verify(service).getStatusSnapshot(DemoAnalysisFactory.DEMO_ID);
+        verify(service, never()).get(DemoAnalysisFactory.DEMO_ID);
+        verify(service, never()).getJob(DemoAnalysisFactory.DEMO_ID);
     }
 
     @Test

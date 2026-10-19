@@ -14,9 +14,13 @@ import org.springframework.dao.DataAccessException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.HttpMethod;
 import org.springframework.http.ProblemDetail;
+import org.springframework.http.ResponseEntity;
 import org.springframework.http.converter.HttpMessageNotReadableException;
+import org.springframework.web.HttpMediaTypeNotAcceptableException;
 import org.springframework.web.HttpMediaTypeNotSupportedException;
+import org.springframework.web.HttpRequestMethodNotSupportedException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.MissingServletRequestParameterException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
@@ -24,6 +28,8 @@ import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
 import org.springframework.web.multipart.MaxUploadSizeExceededException;
 import org.springframework.web.multipart.support.MissingServletRequestPartException;
+import org.springframework.web.servlet.NoHandlerFoundException;
+import org.springframework.web.servlet.resource.NoResourceFoundException;
 
 import java.net.URI;
 import com.certaaccess.evidencerfp.observability.EvidenceRfpMetrics;
@@ -67,6 +73,34 @@ public class ApiExceptionHandler {
         return problem(HttpStatus.UNSUPPORTED_MEDIA_TYPE, "Nicht unterstützter Medientyp",
                 "Der Content-Type der Anfrage wird für diesen Endpunkt nicht unterstützt.",
                 "UNSUPPORTED_MEDIA_TYPE", request);
+    }
+
+    @ExceptionHandler(HttpMediaTypeNotAcceptableException.class)
+    ProblemDetail notAcceptable(HttpMediaTypeNotAcceptableException exception,
+                                HttpServletRequest request) {
+        return problem(HttpStatus.NOT_ACCEPTABLE, "Nicht akzeptables Antwortformat",
+                "Für das angeforderte Antwortformat ist keine Darstellung verfügbar.",
+                "NOT_ACCEPTABLE", request);
+    }
+
+    @ExceptionHandler(HttpRequestMethodNotSupportedException.class)
+    ResponseEntity<ProblemDetail> methodNotAllowed(HttpRequestMethodNotSupportedException exception,
+                                                   HttpServletRequest request) {
+        ProblemDetail body = problem(HttpStatus.METHOD_NOT_ALLOWED, "Methode nicht erlaubt",
+                "Die HTTP-Methode wird für diesen Endpunkt nicht unterstützt.",
+                "METHOD_NOT_ALLOWED", request);
+        var response = ResponseEntity.status(HttpStatus.METHOD_NOT_ALLOWED);
+        if (exception.getSupportedHttpMethods() != null) {
+            response.allow(exception.getSupportedHttpMethods().toArray(HttpMethod[]::new));
+        }
+        return response.body(body);
+    }
+
+    @ExceptionHandler({NoResourceFoundException.class, NoHandlerFoundException.class})
+    ProblemDetail apiResourceNotFound(Exception exception, HttpServletRequest request) {
+        return problem(HttpStatus.NOT_FOUND, "API-Ressource nicht gefunden",
+                "Für den angeforderten API-Pfad ist keine Ressource vorhanden.",
+                "API_RESOURCE_NOT_FOUND", request);
     }
 
     @ExceptionHandler(AnalysisNotFoundException.class)
@@ -144,6 +178,16 @@ public class ApiExceptionHandler {
         LOGGER.atError().addKeyValue("requestPath", request.getRequestURI())
                 .addKeyValue("exceptionType", exception.getClass().getSimpleName())
                 .log("Persistenzfehler an der API-Grenze");
+        return problem(HttpStatus.INTERNAL_SERVER_ERROR, "Interner Fehler",
+                "Die Anfrage konnte wegen eines internen Fehlers nicht verarbeitet werden.",
+                "INTERNAL_ERROR", request);
+    }
+
+    @ExceptionHandler(Exception.class)
+    ProblemDetail unexpectedError(Exception exception, HttpServletRequest request) {
+        LOGGER.atError().addKeyValue("requestPath", request.getRequestURI())
+                .addKeyValue("exceptionType", exception.getClass().getSimpleName())
+                .log("Unerwarteter unbehandelter API-Fehler");
         return problem(HttpStatus.INTERNAL_SERVER_ERROR, "Interner Fehler",
                 "Die Anfrage konnte wegen eines internen Fehlers nicht verarbeitet werden.",
                 "INTERNAL_ERROR", request);

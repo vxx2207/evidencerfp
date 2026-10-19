@@ -123,13 +123,13 @@ public class AnalysisController {
         URI location = ServletUriComponentsBuilder.fromCurrentRequestUri().path("/{id}")
                 .buildAndExpand(analysis.id()).toUri();
         return ResponseEntity.status(HttpStatus.ACCEPTED).location(location)
-                .body(AnalysisStatusResponse.from(analysis, analysisService.getJob(analysis.id())));
+                .body(AnalysisStatusResponse.from(analysisService.getStatusSnapshot(analysis.id())));
     }
 
     @GetMapping("/analyses/{id}")
     @Operation(summary = "Liefert Status und Fortschritt einer Analyse")
     public AnalysisStatusResponse status(@PathVariable UUID id) {
-        return AnalysisStatusResponse.from(analysisService.get(id), analysisService.getJob(id));
+        return AnalysisStatusResponse.from(analysisService.getStatusSnapshot(id));
     }
 
     @GetMapping("/analyses/{id}/result")

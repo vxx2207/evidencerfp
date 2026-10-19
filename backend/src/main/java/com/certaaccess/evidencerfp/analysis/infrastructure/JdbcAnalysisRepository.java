@@ -4,6 +4,7 @@ import com.certaaccess.evidencerfp.analysis.application.AnalysisRepository;
 import com.certaaccess.evidencerfp.analysis.application.AnalysisNotFoundException;
 import com.certaaccess.evidencerfp.analysis.application.AnalysisNotReadyException;
 import com.certaaccess.evidencerfp.analysis.application.AnalysisSubmission;
+import com.certaaccess.evidencerfp.analysis.application.AnalysisStatusSnapshot;
 import com.certaaccess.evidencerfp.analysis.application.DemoAnalysisFactory;
 import com.certaaccess.evidencerfp.analysis.application.EditConflictException;
 import com.certaaccess.evidencerfp.analysis.application.IdempotencyKeyReusedException;
@@ -28,7 +29,6 @@ import com.certaaccess.evidencerfp.analysis.domain.ReviewAction;
 import com.certaaccess.evidencerfp.analysis.domain.ReviewActor;
 import com.certaaccess.evidencerfp.analysis.domain.ReviewEvent;
 import com.certaaccess.evidencerfp.analysis.domain.ReviewProvenance;
-import jakarta.annotation.PostConstruct;
 import org.springframework.context.annotation.Profile;
 import org.springframework.jdbc.core.simple.JdbcClient;
 import org.springframework.stereotype.Repository;
@@ -53,6 +53,7 @@ import java.util.UUID;
 @Repository
 @Profile("production")
 public class JdbcAnalysisRepository implements AnalysisRepository {
+    private static final String DEMO_SEED_KEY = "synthetic-demo-v0.2";
     private static final TypeReference<List<Citation>> CITATIONS = new TypeReference<>() { };
     private static final TypeReference<List<Finding>> FINDINGS = new TypeReference<>() { };
     private static final TypeReference<List<AnswerClaim>> CLAIMS = new TypeReference<>() { };
@@ -68,9 +69,23 @@ public class JdbcAnalysisRepository implements AnalysisRepository {
         this.demoAnalysisFactory = demoAnalysisFactory;
     }
 
-    @PostConstruct
-    void seedDemo() {
-        if (findById(DemoAnalysisFactory.DEMO_ID).isEmpty()) save(demoAnalysisFactory.create());
+    /** Wird von {@link DemoDataInitializer} über den transaktionalen Repository-Proxy aufgerufen. */
+    @Transactional
+    public void seedDemoOnce() {
+        int claimed = jdbc.sql("""
+                INSERT INTO application_seed (seed_key, applied_at)
+                VALUES (:seedKey, now())
+                ON CONFLICT (seed_key) DO NOTHING
+                """)
+                .param("seedKey", DEMO_SEED_KEY)
+                .update();
+        if (claimed == 0) return;
+        Boolean existsIncludingTombstone = jdbc.sql(
+                        "SELECT EXISTS (SELECT 1 FROM analysis WHERE id = :id)")
+                .param("id", DemoAnalysisFactory.DEMO_ID)
+                .query(Boolean.class)
+                .single();
+        if (!Boolean.TRUE.equals(existsIncludingTombstone)) save(demoAnalysisFactory.create());
     }
 
     @Override
@@ -302,6 +317,13 @@ public class JdbcAnalysisRepository implements AnalysisRepository {
     }
 
     @Override
+    @Transactional(readOnly = true, isolation = Isolation.REPEATABLE_READ)
+    public Optional<AnalysisStatusSnapshot> findStatusSnapshotById(UUID id) {
+        return findById(id).map(analysis -> new AnalysisStatusSnapshot(
+                analysis, findJobByAnalysisId(id)));
+    }
+
+    @Override
     public List<AnalysisUpload> findUploads(UUID analysisId) {
         return jdbc.sql("""
                 SELECT id, analysis_id, kind, position, original_filename, media_type,
@@ -355,6 +377,7 @@ public class JdbcAnalysisRepository implements AnalysisRepository {
                     .param("analysisId", analysisId)
                     .param("completedAt", Timestamp.from(now))
                     .update();
+            scheduleCleanup(analysisId, "RETRIES_EXHAUSTED", now);
         }
         return exhausted;
     }
@@ -398,6 +421,7 @@ public class JdbcAnalysisRepository implements AnalysisRepository {
                   updated_at = :heartbeatAt
                 WHERE analysis_id = :analysisId AND status = 'PROCESSING'
                   AND cancel_requested = FALSE AND lease_owner = :leaseOwner
+                  AND lease_until > :heartbeatAt
                 """)
                 .param("analysisId", analysisId)
                 .param("leaseOwner", leaseOwner)
@@ -414,6 +438,7 @@ public class JdbcAnalysisRepository implements AnalysisRepository {
                   heartbeat_at = :now, lease_until = :leaseUntil, updated_at = :now
                 WHERE analysis_id = :analysisId AND status = 'PROCESSING'
                   AND cancel_requested = FALSE AND lease_owner = :leaseOwner
+                  AND lease_until > :now
                 """)
                 .param("analysisId", analysisId)
                 .param("leaseOwner", leaseOwner)
@@ -440,6 +465,7 @@ public class JdbcAnalysisRepository implements AnalysisRepository {
                 .update();
         if (claimed != 1) return false;
         save(analysis);
+        scheduleCleanup(analysis.id(), "COMPLETED", now);
         return true;
     }
 
@@ -466,6 +492,7 @@ public class JdbcAnalysisRepository implements AnalysisRepository {
                 .param("analysisId", analysisId)
                 .param("completedAt", Timestamp.from(now))
                 .update();
+        scheduleCleanup(analysisId, "FAILED", now);
         return true;
     }
 
@@ -502,10 +529,87 @@ public class JdbcAnalysisRepository implements AnalysisRepository {
     }
 
     @Override
-    public void deleteUploadMetadata(UUID analysisId) {
+    @Transactional
+    public List<UUID> claimCleanupTasks(String leaseOwner, Instant now, Instant leaseUntil,
+                                        int maxResults) {
+        return jdbc.sql("""
+                WITH candidates AS (
+                  SELECT analysis_id FROM analysis_cleanup_task
+                  WHERE (status = 'PENDING' AND next_attempt_at <= :now)
+                     OR (status = 'PROCESSING' AND lease_until <= :now)
+                  ORDER BY created_at
+                  LIMIT :maxResults
+                  FOR UPDATE SKIP LOCKED
+                )
+                UPDATE analysis_cleanup_task task SET status = 'PROCESSING',
+                  attempt_count = attempt_count + 1, lease_owner = :leaseOwner,
+                  lease_until = :leaseUntil, updated_at = :now, last_error_code = NULL
+                FROM candidates
+                WHERE task.analysis_id = candidates.analysis_id
+                RETURNING task.analysis_id
+                """)
+                .param("leaseOwner", leaseOwner)
+                .param("now", Timestamp.from(now))
+                .param("leaseUntil", Timestamp.from(leaseUntil))
+                .param("maxResults", maxResults)
+                .query(UUID.class)
+                .list();
+    }
+
+    @Override
+    @Transactional
+    public boolean completeCleanup(UUID analysisId, String leaseOwner, Instant now) {
+        lockAnalysisLifecycleRows(analysisId);
+        int completed = jdbc.sql("""
+                DELETE FROM analysis_cleanup_task
+                WHERE analysis_id = :analysisId AND status = 'PROCESSING'
+                  AND lease_owner = :leaseOwner
+                """)
+                .param("analysisId", analysisId)
+                .param("leaseOwner", leaseOwner)
+                .update();
+        if (completed != 1) return false;
         jdbc.sql("DELETE FROM analysis_job_upload WHERE analysis_id = :analysisId")
                 .param("analysisId", analysisId)
                 .update();
+        jdbc.sql("DELETE FROM analysis WHERE id = :analysisId AND deleted_at IS NOT NULL")
+                .param("analysisId", analysisId)
+                .update();
+        return true;
+    }
+
+    @Override
+    public boolean retryCleanup(UUID analysisId, String leaseOwner, Instant now,
+                                Instant nextAttemptAt, String failureCode) {
+        return jdbc.sql("""
+                UPDATE analysis_cleanup_task SET status = 'PENDING', lease_owner = NULL,
+                  lease_until = NULL, next_attempt_at = :nextAttemptAt, updated_at = :now,
+                  last_error_code = :failureCode
+                WHERE analysis_id = :analysisId AND status = 'PROCESSING'
+                  AND lease_owner = :leaseOwner
+                """)
+                .param("analysisId", analysisId)
+                .param("leaseOwner", leaseOwner)
+                .param("now", Timestamp.from(now))
+                .param("nextAttemptAt", Timestamp.from(nextAttemptAt))
+                .param("failureCode", failureCode)
+                .update() == 1;
+    }
+
+    @Override
+    public boolean isUploadStorageTracked(UUID analysisId) {
+        Boolean tracked = jdbc.sql("""
+                SELECT EXISTS (
+                    SELECT 1 FROM analysis WHERE id = :analysisId AND deleted_at IS NULL
+                  )
+                  OR EXISTS (
+                    SELECT 1 FROM analysis_cleanup_task WHERE analysis_id = :analysisId
+                  )
+                """)
+                .param("analysisId", analysisId)
+                .query(Boolean.class)
+                .single();
+        return Boolean.TRUE.equals(tracked);
     }
 
     @Override
@@ -513,7 +617,7 @@ public class JdbcAnalysisRepository implements AnalysisRepository {
     public Optional<Analysis> findById(UUID id) {
         return jdbc.sql("""
                 SELECT id, customer_name, status, synthetic, created_at, completed_at
-                FROM analysis WHERE id = :id
+                FROM analysis WHERE id = :id AND deleted_at IS NULL
                 """)
                 .param("id", id)
                 .query((row, rowNumber) -> new Analysis(
@@ -527,16 +631,64 @@ public class JdbcAnalysisRepository implements AnalysisRepository {
 
     @Override
     @Transactional
-    public boolean deleteById(UUID id) {
+    public boolean deleteById(UUID id, Instant now) {
+        Boolean exists = jdbc.sql("""
+                SELECT EXISTS (
+                  SELECT 1 FROM analysis WHERE id = :id AND deleted_at IS NULL
+                )
+                """)
+                .param("id", id)
+                .query(Boolean.class)
+                .single();
+        if (!Boolean.TRUE.equals(exists)) return false;
         jdbc.sql("""
                 UPDATE analysis_job SET cancel_requested = TRUE, status = 'CANCELLED',
                   phase = 'CANCELLED', lease_owner = NULL, lease_until = NULL,
-                  updated_at = now()
-                WHERE analysis_id = :id AND status NOT IN ('COMPLETED', 'FAILED', 'CANCELLED')
+                  heartbeat_at = :now, updated_at = :now
+                WHERE analysis_id = :id AND status <> 'CANCELLED'
                 """)
                 .param("id", id)
+                .param("now", Timestamp.from(now))
                 .update();
-        return jdbc.sql("DELETE FROM analysis WHERE id = :id").param("id", id).update() > 0;
+        int hidden = jdbc.sql("""
+                UPDATE analysis SET deleted_at = :now
+                WHERE id = :id AND deleted_at IS NULL
+                """)
+                .param("id", id)
+                .param("now", Timestamp.from(now))
+                .update();
+        if (hidden != 1) return false;
+        jdbc.sql("DELETE FROM analysis_idempotency WHERE analysis_id = :id")
+                .param("id", id)
+                .update();
+        scheduleCleanup(id, "CANCELLED", now);
+        return true;
+    }
+
+    private void scheduleCleanup(UUID analysisId, String reason, Instant now) {
+        jdbc.sql("""
+                INSERT INTO analysis_cleanup_task
+                  (analysis_id, reason, status, attempt_count, next_attempt_at,
+                   created_at, updated_at)
+                VALUES (:analysisId, :reason, 'PENDING', 0, :now, :now, :now)
+                ON CONFLICT (analysis_id) DO NOTHING
+                """)
+                .param("analysisId", analysisId)
+                .param("reason", reason)
+                .param("now", Timestamp.from(now))
+                .update();
+    }
+
+    /** Einheitliche Sperrreihenfolge für Job, Analyse und anschließend Cleanup-Task. */
+    private void lockAnalysisLifecycleRows(UUID analysisId) {
+        jdbc.sql("SELECT analysis_id FROM analysis_job WHERE analysis_id = :id FOR UPDATE")
+                .param("id", analysisId)
+                .query(UUID.class)
+                .optional();
+        jdbc.sql("SELECT id FROM analysis WHERE id = :id FOR UPDATE")
+                .param("id", analysisId)
+                .query(UUID.class)
+                .optional();
     }
 
     private List<QuestionResult> loadQuestions(UUID analysisId) {

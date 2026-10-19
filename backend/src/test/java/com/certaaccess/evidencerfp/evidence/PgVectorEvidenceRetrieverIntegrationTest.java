@@ -9,6 +9,8 @@ import com.certaaccess.evidencerfp.analysis.domain.Analysis;
 import com.certaaccess.evidencerfp.analysis.domain.AnalysisJob;
 import com.certaaccess.evidencerfp.analysis.domain.AnalysisJobStatus;
 import com.certaaccess.evidencerfp.analysis.domain.AnalysisStatus;
+import com.certaaccess.evidencerfp.analysis.domain.AnalysisUpload;
+import com.certaaccess.evidencerfp.analysis.domain.AnalysisUploadKind;
 import com.certaaccess.evidencerfp.analysis.domain.AnswerStatus;
 import com.certaaccess.evidencerfp.analysis.domain.Finding;
 import com.certaaccess.evidencerfp.analysis.domain.ReviewStatus;
@@ -22,6 +24,8 @@ import com.certaaccess.evidencerfp.sample.SampleDataGenerator;
 import org.flywaydb.core.Flyway;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
+import org.junit.jupiter.api.parallel.Execution;
+import org.junit.jupiter.api.parallel.ExecutionMode;
 import org.apache.poi.xssf.usermodel.XSSFWorkbook;
 import org.postgresql.ds.PGSimpleDataSource;
 import org.springframework.mock.web.MockMultipartFile;
@@ -58,6 +62,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 @Testcontainers(disabledWithoutDocker = true)
+@Execution(ExecutionMode.SAME_THREAD)
 class PgVectorEvidenceRetrieverIntegrationTest {
     private static final Pattern DOCUMENT_ID = Pattern.compile("(?m)^documentId:\\s*(\\S+)\\s*$");
     private static final Pattern SECTION = Pattern.compile("(?m)^##\\s+(.+?)\\s+\\{#([^}]+)}\\s*$");
@@ -75,7 +80,7 @@ class PgVectorEvidenceRetrieverIntegrationTest {
         dataSource.setURL(POSTGRES.getJdbcUrl());
         dataSource.setUser(POSTGRES.getUsername());
         dataSource.setPassword(POSTGRES.getPassword());
-        Flyway.configure().dataSource(dataSource).load().migrate();
+        migrateFresh(dataSource);
         PgVectorEvidenceRetriever retriever = new PgVectorEvidenceRetriever(
                 JdbcClient.create(dataSource), new HashingEvidenceEmbeddingProvider());
         EvidenceChunk relevant = chunk("FIDO2 Passkeys phishing-resistente Authentifizierung");
@@ -91,7 +96,7 @@ class PgVectorEvidenceRetrieverIntegrationTest {
     @Test
     void embedsTheCorpusOnlyOnceForABatchOfQuestions() {
         PGSimpleDataSource dataSource = dataSource();
-        Flyway.configure().dataSource(dataSource).load().migrate();
+        migrateFresh(dataSource);
         CountingEmbeddingProvider embeddings = new CountingEmbeddingProvider();
         PgVectorEvidenceRetriever retriever = new PgVectorEvidenceRetriever(
                 JdbcClient.create(dataSource), embeddings);
@@ -115,7 +120,7 @@ class PgVectorEvidenceRetrieverIntegrationTest {
     @Test
     void fusesDenseAndGermanFullTextResultsWithProvenance() {
         PGSimpleDataSource dataSource = dataSource();
-        Flyway.configure().dataSource(dataSource).load().migrate();
+        migrateFresh(dataSource);
         PgVectorEvidenceRetriever retriever = new PgVectorEvidenceRetriever(
                 JdbcClient.create(dataSource), new HashingEvidenceEmbeddingProvider());
         EvidenceChunk fido = chunk("FIDO2 Sicherheitsschlüssel und WebAuthn sind phishing-resistente Faktoren");
@@ -139,7 +144,7 @@ class PgVectorEvidenceRetrieverIntegrationTest {
     @Test
     void hybridGoldenSetMeasuresBothProductionRetrievalChannels() throws IOException {
         PGSimpleDataSource dataSource = dataSource();
-        Flyway.configure().dataSource(dataSource).load().migrate();
+        migrateFresh(dataSource);
         PgVectorEvidenceRetriever retriever = new PgVectorEvidenceRetriever(
                 JdbcClient.create(dataSource), new HashingEvidenceEmbeddingProvider());
         Path examples = Path.of("..", "examples");
@@ -185,7 +190,7 @@ class PgVectorEvidenceRetrieverIntegrationTest {
     @Test
     void persistsAndReloadsTheCompleteReviewState() {
         PGSimpleDataSource dataSource = dataSource();
-        Flyway.configure().dataSource(dataSource).load().migrate();
+        migrateFresh(dataSource);
         JdbcAnalysisRepository repository = new JdbcAnalysisRepository(
                 JdbcClient.create(dataSource), new ObjectMapper(), new DemoAnalysisFactory());
         Analysis analysis = new DemoAnalysisFactory().create();
@@ -217,7 +222,7 @@ class PgVectorEvidenceRetrieverIntegrationTest {
     @Test
     void runsProductionImportReviewPersistenceAndXlsxExportEndToEnd() throws Exception {
         PGSimpleDataSource dataSource = dataSource();
-        Flyway.configure().dataSource(dataSource).load().migrate();
+        migrateFresh(dataSource);
         JdbcClient jdbc = JdbcClient.create(dataSource);
         Clock clock = Clock.fixed(Instant.parse("2026-10-15T12:00:00Z"), ZoneOffset.UTC);
         JdbcAnalysisRepository repository = new JdbcAnalysisRepository(
@@ -281,7 +286,7 @@ class PgVectorEvidenceRetrieverIntegrationTest {
     @Test
     void concurrentReviewUsesCompareAndSetAndKeepsExactlyOneAuditEvent() throws Exception {
         PGSimpleDataSource dataSource = dataSource();
-        Flyway.configure().dataSource(dataSource).load().migrate();
+        migrateFresh(dataSource);
         JdbcAnalysisRepository repository = repository(dataSource);
         TransactionTemplate transaction = new TransactionTemplate(new DataSourceTransactionManager(dataSource));
         Analysis analysis = completedAnalysis();
@@ -307,7 +312,7 @@ class PgVectorEvidenceRetrieverIntegrationTest {
     @Test
     void deletedProcessingJobCannotBeResurrectedByItsFormerWorker() {
         PGSimpleDataSource dataSource = dataSource();
-        Flyway.configure().dataSource(dataSource).load().migrate();
+        migrateFresh(dataSource);
         JdbcAnalysisRepository repository = repository(dataSource);
         TransactionTemplate transaction = new TransactionTemplate(new DataSourceTransactionManager(dataSource));
         Instant now = Instant.parse("2026-10-18T08:00:00Z");
@@ -316,7 +321,8 @@ class PgVectorEvidenceRetrieverIntegrationTest {
                 AnalysisJob.queued(queued.id(), now, 2), List.of(), null, "a".repeat(64)));
         assertThat(repository.claimJob(queued.id(), "worker-a", now, now.plusSeconds(30))).isPresent();
 
-        Boolean deleted = transaction.execute(ignored -> repository.deleteById(queued.id()));
+        Boolean deleted = transaction.execute(ignored -> repository.deleteById(
+                queued.id(), now.plusSeconds(1)));
         assertThat(deleted).isTrue();
         Analysis completed = new Analysis(queued.id(), queued.customerName(), false,
                 AnalysisStatus.COMPLETED, queued.createdAt(), now.plusSeconds(5), List.of(), List.of(), List.of());
@@ -325,12 +331,19 @@ class PgVectorEvidenceRetrieverIntegrationTest {
                 completed, "worker-a", now.plusSeconds(5)));
         assertThat(completedAfterDelete).isFalse();
         assertThat(repository.findById(queued.id())).isEmpty();
+        assertThat(repository.findJobByAnalysisId(queued.id())).get()
+                .extracting(AnalysisJob::status).isEqualTo(AnalysisJobStatus.CANCELLED);
+        assertThat(repository.claimCleanupTasks("cleanup-after-delete", now.plusSeconds(1),
+                now.plusSeconds(31), 10)).containsExactly(queued.id());
+        assertThat(repository.completeCleanup(queued.id(), "cleanup-after-delete",
+                now.plusSeconds(2))).isTrue();
+        assertThat(repository.findJobByAnalysisId(queued.id())).isEmpty();
     }
 
     @Test
     void twoWorkersAtomicallyClaimAQueuedJobOnlyOnce() throws Exception {
         PGSimpleDataSource dataSource = dataSource();
-        Flyway.configure().dataSource(dataSource).load().migrate();
+        migrateFresh(dataSource);
         JdbcAnalysisRepository repository = repository(dataSource);
         TransactionTemplate transaction = new TransactionTemplate(new DataSourceTransactionManager(dataSource));
         Instant now = Instant.parse("2026-10-18T08:30:00Z");
@@ -356,7 +369,7 @@ class PgVectorEvidenceRetrieverIntegrationTest {
     @Test
     void expiredLeaseIsRecoveredAndJobCanOnlyBeFinalizedOnce() {
         PGSimpleDataSource dataSource = dataSource();
-        Flyway.configure().dataSource(dataSource).load().migrate();
+        migrateFresh(dataSource);
         JdbcAnalysisRepository repository = repository(dataSource);
         TransactionTemplate transaction = new TransactionTemplate(new DataSourceTransactionManager(dataSource));
         Instant now = Instant.parse("2026-10-18T09:00:00Z");
@@ -383,9 +396,214 @@ class PgVectorEvidenceRetrieverIntegrationTest {
     }
 
     @Test
+    void terminalJobCleanupIsDurableLeasedAndRecoverableAfterACrash() {
+        PGSimpleDataSource dataSource = dataSource();
+        migrateFresh(dataSource);
+        JdbcAnalysisRepository repository = repository(dataSource);
+        TransactionTemplate transaction = new TransactionTemplate(new DataSourceTransactionManager(dataSource));
+        Instant now = Instant.parse("2026-10-18T09:10:00Z");
+        Analysis queued = processingAnalysis(now);
+        AnalysisUpload upload = new AnalysisUpload(UUID.randomUUID(), queued.id(),
+                AnalysisUploadKind.RFP, 0, "fragen.xlsx", "application/octet-stream", 3,
+                "a".repeat(64), queued.id() + "/staged.upload");
+        transaction.executeWithoutResult(ignored -> repository.enqueue(queued,
+                AnalysisJob.queued(queued.id(), now, 2), List.of(upload), null, "c".repeat(64)));
+        assertThat(repository.claimJob(queued.id(), "worker-a", now, now.plusSeconds(30))).isPresent();
+        Analysis completed = new Analysis(queued.id(), queued.customerName(), false,
+                AnalysisStatus.COMPLETED, queued.createdAt(), now.plusSeconds(1),
+                List.of(), List.of(), List.of());
+        Boolean completedSuccessfully = transaction.execute(ignored -> repository.completeJob(
+                completed, "worker-a", now.plusSeconds(1)));
+        assertThat(completedSuccessfully).isTrue();
+
+        assertThat(repository.claimCleanupTasks("cleanup-a", now.plusSeconds(1),
+                now.plusSeconds(31), 10)).containsExactly(queued.id());
+        assertThat(repository.claimCleanupTasks("cleanup-b", now.plusSeconds(30),
+                now.plusSeconds(60), 10)).isEmpty();
+        assertThat(repository.claimCleanupTasks("cleanup-b", now.plusSeconds(32),
+                now.plusSeconds(62), 10)).containsExactly(queued.id());
+        assertThat(repository.completeCleanup(queued.id(), "cleanup-a", now.plusSeconds(33))).isFalse();
+        assertThat(repository.completeCleanup(queued.id(), "cleanup-b", now.plusSeconds(33))).isTrue();
+
+        assertThat(repository.findUploads(queued.id())).isEmpty();
+        assertThat(repository.claimCleanupTasks("cleanup-c", now.plusSeconds(90),
+                now.plusSeconds(120), 10)).isEmpty();
+    }
+
+    @Test
+    void deletingACompletedAnalysisReactivatesCleanupAndPhysicallyPurgesItsTombstone() {
+        PGSimpleDataSource dataSource = dataSource();
+        migrateFresh(dataSource);
+        JdbcAnalysisRepository repository = repository(dataSource);
+        TransactionTemplate transaction = new TransactionTemplate(new DataSourceTransactionManager(dataSource));
+        Instant now = Instant.parse("2026-10-18T09:12:00Z");
+        Analysis queued = processingAnalysis(now);
+        transaction.executeWithoutResult(ignored -> repository.enqueue(queued,
+                AnalysisJob.queued(queued.id(), now, 2), List.of(), null, "d".repeat(64)));
+        assertThat(repository.claimJob(queued.id(), "worker", now, now.plusSeconds(30))).isPresent();
+        Analysis completed = new Analysis(queued.id(), queued.customerName(), false,
+                AnalysisStatus.COMPLETED, queued.createdAt(), now.plusSeconds(1),
+                List.of(), List.of(), List.of());
+        Boolean completedSuccessfully = transaction.execute(ignored -> repository.completeJob(
+                completed, "worker", now.plusSeconds(1)));
+        assertThat(completedSuccessfully).isTrue();
+        assertThat(repository.claimCleanupTasks("terminal-cleanup", now.plusSeconds(1),
+                now.plusSeconds(31), 10)).containsExactly(queued.id());
+        assertThat(repository.completeCleanup(queued.id(), "terminal-cleanup",
+                now.plusSeconds(2))).isTrue();
+
+        Boolean deleted = transaction.execute(ignored -> repository.deleteById(
+                queued.id(), now.plusSeconds(3)));
+        assertThat(deleted).isTrue();
+        assertThat(repository.findById(queued.id())).isEmpty();
+        assertThat(repository.claimCleanupTasks("delete-cleanup", now.plusSeconds(3),
+                now.plusSeconds(33), 10)).containsExactly(queued.id());
+        assertThat(repository.completeCleanup(queued.id(), "delete-cleanup",
+                now.plusSeconds(4))).isTrue();
+
+        assertThat(repository.findJobByAnalysisId(queued.id())).isEmpty();
+        Long remaining = JdbcClient.create(dataSource)
+                .sql("SELECT COUNT(*) FROM analysis WHERE id = :id")
+                .param("id", queued.id())
+                .query(Long.class)
+                .single();
+        assertThat(remaining).isZero();
+    }
+
+    @Test
+    void concurrentDeleteAndCleanupUseOneLockOrderAndFinishWithoutDeadlock() throws Exception {
+        PGSimpleDataSource dataSource = dataSource();
+        migrateFresh(dataSource);
+        JdbcAnalysisRepository repository = repository(dataSource);
+        TransactionTemplate transaction = new TransactionTemplate(new DataSourceTransactionManager(dataSource));
+        Instant now = Instant.parse("2026-10-18T09:13:00Z");
+        Analysis queued = processingAnalysis(now);
+        transaction.executeWithoutResult(ignored -> repository.enqueue(queued,
+                AnalysisJob.queued(queued.id(), now, 2), List.of(), null, "e".repeat(64)));
+        assertThat(repository.claimJob(queued.id(), "worker", now, now.plusSeconds(30))).isPresent();
+        Analysis completed = new Analysis(queued.id(), queued.customerName(), false,
+                AnalysisStatus.COMPLETED, queued.createdAt(), now.plusSeconds(1),
+                List.of(), List.of(), List.of());
+        Boolean finalized = transaction.execute(ignored -> repository.completeJob(
+                completed, "worker", now.plusSeconds(1)));
+        assertThat(finalized).isTrue();
+        assertThat(repository.claimCleanupTasks("cleanup", now.plusSeconds(1),
+                now.plusSeconds(31), 10)).containsExactly(queued.id());
+        CountDownLatch ready = new CountDownLatch(2);
+        CountDownLatch start = new CountDownLatch(1);
+
+        CompletableFuture<Boolean> cleanup = CompletableFuture.supplyAsync(() -> {
+            ready.countDown();
+            await(start);
+            return transaction.execute(ignored -> repository.completeCleanup(
+                    queued.id(), "cleanup", now.plusSeconds(2)));
+        });
+        CompletableFuture<Boolean> deletion = CompletableFuture.supplyAsync(() -> {
+            ready.countDown();
+            await(start);
+            return transaction.execute(ignored -> repository.deleteById(
+                    queued.id(), now.plusSeconds(2)));
+        });
+        assertThat(ready.await(5, TimeUnit.SECONDS)).isTrue();
+        start.countDown();
+
+        assertThat(cleanup.get(10, TimeUnit.SECONDS)).isTrue();
+        assertThat(deletion.get(10, TimeUnit.SECONDS)).isTrue();
+        List<UUID> remainingCleanup = repository.claimCleanupTasks("final-cleanup",
+                now.plusSeconds(3), now.plusSeconds(33), 10);
+        if (!remainingCleanup.isEmpty()) {
+            assertThat(remainingCleanup).containsExactly(queued.id());
+            Boolean finalCleanupCompleted = transaction.execute(ignored -> repository.completeCleanup(
+                    queued.id(), "final-cleanup", now.plusSeconds(4)));
+            assertThat(finalCleanupCompleted).isTrue();
+        }
+        assertThat(repository.findById(queued.id())).isEmpty();
+        assertThat(repository.findJobByAnalysisId(queued.id())).isEmpty();
+    }
+
+    @Test
+    void savingCannotResurrectASoftDeletedAnalysis() {
+        PGSimpleDataSource dataSource = dataSource();
+        migrateFresh(dataSource);
+        JdbcAnalysisRepository repository = repository(dataSource);
+        TransactionTemplate transaction = new TransactionTemplate(new DataSourceTransactionManager(dataSource));
+        Instant now = Instant.parse("2026-10-18T09:14:00Z");
+        Analysis analysis = completedAnalysis();
+        transaction.executeWithoutResult(ignored -> repository.save(analysis));
+        Boolean deleted = transaction.execute(ignored -> repository.deleteById(analysis.id(), now));
+        assertThat(deleted).isTrue();
+
+        transaction.executeWithoutResult(ignored -> repository.save(analysis));
+
+        assertThat(repository.findById(analysis.id())).isEmpty();
+    }
+
+    @Test
+    void deletedSyntheticDemoIsNotSeededAgainAfterCleanupAndRestart() {
+        PGSimpleDataSource dataSource = dataSource();
+        migrateFresh(dataSource);
+        JdbcAnalysisRepository repository = repository(dataSource);
+        TransactionTemplate transaction = new TransactionTemplate(new DataSourceTransactionManager(dataSource));
+        Instant now = Instant.parse("2026-10-18T09:15:00Z");
+        transaction.executeWithoutResult(ignored -> repository.seedDemoOnce());
+        assertThat(repository.findById(DemoAnalysisFactory.DEMO_ID)).isPresent();
+
+        Boolean deleted = transaction.execute(ignored -> repository.deleteById(
+                DemoAnalysisFactory.DEMO_ID, now));
+        assertThat(deleted).isTrue();
+        assertThat(repository.claimCleanupTasks("demo-cleanup", now,
+                now.plusSeconds(30), 10)).containsExactly(DemoAnalysisFactory.DEMO_ID);
+        Boolean cleaned = transaction.execute(ignored -> repository.completeCleanup(
+                DemoAnalysisFactory.DEMO_ID, "demo-cleanup", now.plusSeconds(1)));
+        assertThat(cleaned).isTrue();
+
+        JdbcAnalysisRepository restartedRepository = repository(dataSource);
+        transaction.executeWithoutResult(ignored -> restartedRepository.seedDemoOnce());
+
+        assertThat(restartedRepository.findById(DemoAnalysisFactory.DEMO_ID)).isEmpty();
+    }
+
+    @Test
+    void expiredLeaseOwnerCannotRenewAdvanceOrFinalizeTheJob() {
+        PGSimpleDataSource dataSource = dataSource();
+        migrateFresh(dataSource);
+        JdbcAnalysisRepository repository = repository(dataSource);
+        TransactionTemplate transaction = new TransactionTemplate(new DataSourceTransactionManager(dataSource));
+        Instant now = Instant.parse("2026-10-18T09:15:00Z");
+        Instant expiresAt = now.plusSeconds(30);
+        Analysis queued = processingAnalysis(now);
+        transaction.executeWithoutResult(ignored -> repository.enqueue(queued,
+                AnalysisJob.queued(queued.id(), now, 2), List.of(), null, "9".repeat(64)));
+        assertThat(repository.claimJob(queued.id(), "expired-worker", now, expiresAt)).isPresent();
+        Analysis completed = new Analysis(queued.id(), queued.customerName(), false,
+                AnalysisStatus.COMPLETED, queued.createdAt(), expiresAt, List.of(), List.of(), List.of());
+
+        assertThat(repository.renewLease(queued.id(), "expired-worker", expiresAt,
+                expiresAt.plusSeconds(30))).isFalse();
+        assertThat(repository.advanceJob(queued.id(), "expired-worker",
+                com.certaaccess.evidencerfp.analysis.domain.AnalysisPhase.ANSWERING,
+                55, expiresAt, expiresAt.plusSeconds(30))).isFalse();
+        Boolean completedAfterExpiry = transaction.execute(ignored -> repository.completeJob(
+                completed, "expired-worker", expiresAt));
+        Boolean failedAfterExpiry = transaction.execute(ignored -> repository.failJob(
+                queued.id(), "expired-worker", "SHOULD_NOT_WIN", expiresAt));
+        assertThat(completedAfterExpiry).isFalse();
+        assertThat(failedAfterExpiry).isFalse();
+
+        assertThat(repository.findStatusSnapshotById(queued.id())).get().satisfies(snapshot -> {
+            assertThat(snapshot.analysis().status()).isEqualTo(AnalysisStatus.PROCESSING);
+            assertThat(snapshot.job()).get().satisfies(job -> {
+                assertThat(job.phase()).isEqualTo(
+                        com.certaaccess.evidencerfp.analysis.domain.AnalysisPhase.PARSING);
+                assertThat(job.leaseUntil()).isEqualTo(expiresAt);
+            });
+        });
+    }
+
+    @Test
     void secondExpiredLeaseFailsTheJobInsteadOfStartingAThirdAttempt() {
         PGSimpleDataSource dataSource = dataSource();
-        Flyway.configure().dataSource(dataSource).load().migrate();
+        migrateFresh(dataSource);
         JdbcAnalysisRepository repository = repository(dataSource);
         TransactionTemplate transaction = new TransactionTemplate(new DataSourceTransactionManager(dataSource));
         Instant now = Instant.parse("2026-10-18T09:30:00Z");
@@ -416,7 +634,7 @@ class PgVectorEvidenceRetrieverIntegrationTest {
     @Test
     void idempotencyKeyReturnsExistingAnalysisAndRejectsDifferentContent() {
         PGSimpleDataSource dataSource = dataSource();
-        Flyway.configure().dataSource(dataSource).load().migrate();
+        migrateFresh(dataSource);
         JdbcAnalysisRepository repository = repository(dataSource);
         TransactionTemplate transaction = new TransactionTemplate(new DataSourceTransactionManager(dataSource));
         Instant now = Instant.parse("2026-10-18T10:00:00Z");
@@ -446,6 +664,14 @@ class PgVectorEvidenceRetrieverIntegrationTest {
         dataSource.setUser(POSTGRES.getUsername());
         dataSource.setPassword(POSTGRES.getPassword());
         return dataSource;
+    }
+
+    private void migrateFresh(PGSimpleDataSource dataSource) {
+        Flyway.configure().dataSource(dataSource).load().migrate();
+        JdbcClient.create(dataSource).sql("""
+                TRUNCATE TABLE analysis_cleanup_task, application_seed,
+                  evidence_retrieval_chunk, analysis RESTART IDENTITY CASCADE
+                """).update();
     }
 
     private JdbcAnalysisRepository repository(PGSimpleDataSource dataSource) {
@@ -485,6 +711,17 @@ class PgVectorEvidenceRetrieverIntegrationTest {
                 return cause;
             }
         });
+    }
+
+    private void await(CountDownLatch latch) {
+        try {
+            if (!latch.await(5, TimeUnit.SECONDS)) {
+                throw new IllegalStateException("Startsignal fehlt");
+            }
+        } catch (InterruptedException exception) {
+            Thread.currentThread().interrupt();
+            throw new IllegalStateException("Warten wurde unterbrochen", exception);
+        }
     }
 
     private CompletableFuture<java.util.Optional<AnalysisJob>> claimAsync(

@@ -44,7 +44,16 @@ jobs:
         run: |
           report="target/surefire-reports/TEST-com.certaaccess.evidencerfp.evidence.PgVectorEvidenceRetrieverIntegrationTest.xml"
           test -f "$report"
-          grep -Eq 'tests="12" errors="0" skipped="0" failures="0"' "$report"
+          python - "$report" <<'PY'
+          import sys
+          import xml.etree.ElementTree as ET
+
+          suite = ET.parse(sys.argv[1]).getroot()
+          counts = {name: int(suite.attrib.get(name, "0"))
+                    for name in ("tests", "errors", "failures", "skipped")}
+          assert counts["tests"] >= 18, f"Zu wenige Production-Integrationstests: {counts}"
+          assert counts["errors"] == counts["failures"] == counts["skipped"] == 0, counts
+          PY
 
       - name: Versionierten Qualitätsbericht hochladen
         if: always()

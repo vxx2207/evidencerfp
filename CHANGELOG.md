@@ -2,11 +2,12 @@
 
 Alle nennenswerten Änderungen an EvidenceRFP werden in dieser Datei dokumentiert. Das Format orientiert sich an [Keep a Changelog](https://keepachangelog.com/de/1.1.0/); das Projekt verwendet semantische Versionierung.
 
-## [0.2.0] – 2026-10-18
+## [0.2.0] – 2026-10-19
 
 ### Hinzugefügt
 
 - persistente Analysejobs mit PostgreSQL-Lease, Heartbeat, Recovery, Abbruchmarkierung und maximal zwei Versuchen
+- persistente, geleaste Upload-Cleanup-Aufträge mit Wiederholung und Orphan-Sweeper
 - idempotente Imports über `Idempotency-Key` sowie optimistische Review-Sperren über `If-Match`
 - abschnitts- und satzorientiertes 450/60-Token-Chunking mit deterministischen Chunk-IDs
 - Hybrid Retrieval aus pgvector und deutscher Volltextsuche mit Reciprocal Rank Fusion
@@ -21,7 +22,7 @@ Alle nennenswerten Änderungen an EvidenceRFP werden in dieser Datei dokumentier
 
 ### Geändert
 
-- Uploads werden für die Joblaufzeit unter servergenerierten Namen gespeichert und nach terminalem Zustand entfernt
+- Uploads werden für die Joblaufzeit unter servergenerierten Namen gespeichert und nach terminalem Zustand restart-sicher entfernt
 - Reviewänderung und append-only Audit-Ereignis werden atomar gespeichert; vollständiges Delete/Reinsert entfällt dort
 - Ergebnis, Review und Export verlangen den Zustand `COMPLETED`
 - Frontend und Backend verwenden einheitlich Version `0.2.0`
@@ -30,7 +31,9 @@ Alle nennenswerten Änderungen an EvidenceRFP werden in dieser Datei dokumentier
 ### Sicherheit
 
 - PDF-, DOCX- und XLSX-Verarbeitung erzwingt Seiten-, Zeichen-, Chunk-, Dekompressions-, Verhältnis-, Eintrags- und Zeitbudgets
-- OOXML mit Makros, OLE-Paketen, externen Beziehungen, Verschlüsselung, doppelten Einträgen oder Pfad-Traversal wird abgelehnt
+- Parser laufen in einem begrenzten 4+8-Bulkhead; persistierte PDFs und XLSX-Dateien werden dateibasiert geöffnet, PDF-Zeichenbudgets bereits während der Extraktion erzwungen
+- OOXML mit Makros, OLE-Paketen, externen Beziehungen, Verschlüsselung, doppelten Einträgen, falscher Root-Beziehung oder Pfad-Traversal wird abgelehnt
+- ein Webserver-Customizer erzwingt in jedem Backendprofil die IPv4-Loopback-Bindung
 - Claims werden fail-closed gegen erlaubte Chunk-IDs, exakte Zitate, Zahlen, zentrale Entitäten und Negationen geprüft; auch Größe und Felder der Modell-JSON sind hart begrenzt
 - Provideraufrufe besitzen Timeouts und höchstens zwei Wiederholungen; technische Ausfälle werden nie als `NOT_FOUND` ausgegeben
 

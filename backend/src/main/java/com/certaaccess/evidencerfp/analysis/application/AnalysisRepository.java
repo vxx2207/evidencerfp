@@ -22,6 +22,8 @@ public interface AnalysisRepository {
 
     Optional<AnalysisJob> findJobByAnalysisId(UUID id);
 
+    Optional<AnalysisStatusSnapshot> findStatusSnapshotById(UUID id);
+
     List<AnalysisUpload> findUploads(UUID analysisId);
 
     List<UUID> findRunnableJobIds(Instant now, int maxResults);
@@ -42,7 +44,18 @@ public interface AnalysisRepository {
     QuestionResult updateQuestion(UUID analysisId, String questionId, long expectedRevision,
                                   String answer, ReviewStatus reviewStatus, Instant occurredAt);
 
-    void deleteUploadMetadata(UUID analysisId);
+    List<UUID> claimCleanupTasks(String leaseOwner, Instant now, Instant leaseUntil, int maxResults);
 
-    boolean deleteById(UUID id);
+    boolean completeCleanup(UUID analysisId, String leaseOwner, Instant now);
+
+    boolean retryCleanup(UUID analysisId, String leaseOwner, Instant now, Instant nextAttemptAt,
+                         String failureCode);
+
+    boolean isUploadStorageTracked(UUID analysisId);
+
+    boolean deleteById(UUID id, Instant now);
+
+    default boolean deleteById(UUID id) {
+        return deleteById(id, Instant.now());
+    }
 }

@@ -1,16 +1,25 @@
 package com.certaaccess.evidencerfp.evidence;
 
+import com.certaaccess.evidencerfp.analysis.infrastructure.AnalysisUploadStorage;
 import org.apache.poi.xssf.usermodel.XSSFWorkbook;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.io.TempDir;
 import org.springframework.mock.web.MockMultipartFile;
 
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
+import java.nio.file.Path;
 import java.time.Duration;
+import java.util.List;
+import java.util.UUID;
 
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 class RfpParserSecurityTest {
+    @TempDir
+    Path temporaryDirectory;
+
     @Test
     void rejectsQuestionOverConfiguredCharacterBudget() {
         DocumentProcessingProperties properties = new DocumentProcessingProperties(
@@ -33,6 +42,21 @@ class RfpParserSecurityTest {
         assertThatThrownBy(() -> parser.parse(malformed))
                 .isInstanceOf(InvalidUploadException.class)
                 .hasMessage("Die XLSX-Datei konnte nicht sicher verarbeitet werden.");
+    }
+
+    @Test
+    void parsesPersistedWorkbookThroughItsValidatedFilePath() {
+        AnalysisUploadStorage storage = new AnalysisUploadStorage(temporaryDirectory.toString());
+        UUID analysisId = UUID.randomUUID();
+        var uploads = storage.store(analysisId, workbook("IAM-001", "Ist FIDO2 aktiv?"),
+                List.of(), null);
+
+        List<RfpQuestion> questions = new RfpParser().parse(storage.open(uploads.getFirst()));
+
+        assertThat(questions).singleElement().satisfies(question -> {
+            assertThat(question.id()).isEqualTo("IAM-001");
+            assertThat(question.question()).isEqualTo("Ist FIDO2 aktiv?");
+        });
     }
 
     private MockMultipartFile workbook(String id, String question) {

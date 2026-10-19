@@ -24,11 +24,12 @@ Diese Liste trennt lokal vollständig vorbereitete Arbeit von Schritten, die ers
 
 ## Nach Bereitstellung des GitHub-Remotes
 
-- [ ] Remote `origin` setzen und `main` pushen
-- [ ] Repository-Beschreibung, Topics und `docs/assets/social-preview.png` als Social Preview setzen
-- [ ] GitHub Pages auf „GitHub Actions“ stellen und Deployment prüfen
-- [ ] echten Live-Demo-Link in README und Repository-Metadaten eintragen
-- [ ] Badge-URLs auf den tatsächlichen Owner-/Repository-Pfad umstellen
+- [x] Remote `origin` setzen und `main` pushen
+- [x] Repository-Beschreibung, Homepage und Topics setzen
+- [ ] optimiertes `docs/assets/social-preview.jpg` als Social Preview setzen
+- [x] GitHub Pages auf „GitHub Actions“ stellen und Deployment prüfen
+- [x] echten Live-Demo-Link in README und Repository-Metadaten eintragen
+- [x] Badge-URLs auf den tatsächlichen Owner-/Repository-Pfad umstellen
 - [ ] `main` und annotierten Tag `v0.2.0` pushen
 - [ ] automatisch erzeugtes GitHub Release mit Demo-Artefakten prüfen
 

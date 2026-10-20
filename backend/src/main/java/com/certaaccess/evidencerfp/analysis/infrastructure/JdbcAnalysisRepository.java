@@ -12,6 +12,7 @@ import com.certaaccess.evidencerfp.analysis.domain.Analysis;
 import com.certaaccess.evidencerfp.analysis.domain.AnalysisJob;
 import com.certaaccess.evidencerfp.analysis.domain.AnalysisJobStatus;
 import com.certaaccess.evidencerfp.analysis.domain.AnalysisPhase;
+import com.certaaccess.evidencerfp.analysis.domain.AnalysisRunMetadata;
 import com.certaaccess.evidencerfp.analysis.domain.AnalysisStatus;
 import com.certaaccess.evidencerfp.analysis.domain.AnalysisUpload;
 import com.certaaccess.evidencerfp.analysis.domain.AnalysisUploadKind;
@@ -92,11 +93,18 @@ public class JdbcAnalysisRepository implements AnalysisRepository {
     @Transactional
     public Analysis save(Analysis analysis) {
         jdbc.sql("""
-                INSERT INTO analysis (id, customer_name, status, synthetic, created_at, completed_at)
-                VALUES (:id, :customerName, :status, :synthetic, :createdAt, :completedAt)
+                INSERT INTO analysis
+                  (id, customer_name, status, synthetic, created_at, completed_at,
+                   retrieval_version, prompt_version, embedding_model, chat_model)
+                VALUES (:id, :customerName, :status, :synthetic, :createdAt, :completedAt,
+                        :retrievalVersion, :promptVersion, :embeddingModel, :chatModel)
                 ON CONFLICT (id) DO UPDATE SET customer_name = EXCLUDED.customer_name,
                   status = EXCLUDED.status, synthetic = EXCLUDED.synthetic,
-                  created_at = EXCLUDED.created_at, completed_at = EXCLUDED.completed_at
+                  created_at = EXCLUDED.created_at, completed_at = EXCLUDED.completed_at,
+                  retrieval_version = EXCLUDED.retrieval_version,
+                  prompt_version = EXCLUDED.prompt_version,
+                  embedding_model = EXCLUDED.embedding_model,
+                  chat_model = EXCLUDED.chat_model
                 """)
                 .param("id", analysis.id())
                 .param("customerName", analysis.customerName())
@@ -104,6 +112,10 @@ public class JdbcAnalysisRepository implements AnalysisRepository {
                 .param("synthetic", analysis.synthetic())
                 .param("createdAt", Timestamp.from(analysis.createdAt()))
                 .param("completedAt", analysis.completedAt() == null ? null : Timestamp.from(analysis.completedAt()))
+                .param("retrievalVersion", analysis.runMetadata().retrievalVersion())
+                .param("promptVersion", analysis.runMetadata().promptVersion())
+                .param("embeddingModel", analysis.runMetadata().embeddingModel())
+                .param("chatModel", analysis.runMetadata().chatModel())
                 .update();
 
         jdbc.sql("DELETE FROM analysis_question WHERE analysis_id = :id").param("id", analysis.id()).update();
@@ -244,14 +256,21 @@ public class JdbcAnalysisRepository implements AnalysisRepository {
         }
 
         jdbc.sql("""
-                INSERT INTO analysis (id, customer_name, status, synthetic, created_at, completed_at)
-                VALUES (:id, :customerName, :status, :synthetic, :createdAt, NULL)
+                INSERT INTO analysis
+                  (id, customer_name, status, synthetic, created_at, completed_at,
+                   retrieval_version, prompt_version, embedding_model, chat_model)
+                VALUES (:id, :customerName, :status, :synthetic, :createdAt, NULL,
+                        :retrievalVersion, :promptVersion, :embeddingModel, :chatModel)
                 """)
                 .param("id", analysis.id())
                 .param("customerName", analysis.customerName())
                 .param("status", analysis.status().name())
                 .param("synthetic", analysis.synthetic())
                 .param("createdAt", Timestamp.from(analysis.createdAt()))
+                .param("retrievalVersion", analysis.runMetadata().retrievalVersion())
+                .param("promptVersion", analysis.runMetadata().promptVersion())
+                .param("embeddingModel", analysis.runMetadata().embeddingModel())
+                .param("chatModel", analysis.runMetadata().chatModel())
                 .update();
         jdbc.sql("""
                 INSERT INTO analysis_job
@@ -616,7 +635,8 @@ public class JdbcAnalysisRepository implements AnalysisRepository {
     @Transactional(readOnly = true, isolation = Isolation.REPEATABLE_READ)
     public Optional<Analysis> findById(UUID id) {
         return jdbc.sql("""
-                SELECT id, customer_name, status, synthetic, created_at, completed_at
+                SELECT id, customer_name, status, synthetic, created_at, completed_at,
+                       retrieval_version, prompt_version, embedding_model, chat_model
                 FROM analysis WHERE id = :id AND deleted_at IS NULL
                 """)
                 .param("id", id)
@@ -625,7 +645,10 @@ public class JdbcAnalysisRepository implements AnalysisRepository {
                         row.getBoolean("synthetic"), AnalysisStatus.valueOf(row.getString("status")),
                         row.getTimestamp("created_at").toInstant(),
                         row.getTimestamp("completed_at") == null ? null : row.getTimestamp("completed_at").toInstant(),
-                        loadQuestions(id), loadFindings(id), loadDocuments(id), loadReviewEvents(id)))
+                        loadQuestions(id), loadFindings(id), loadDocuments(id), loadReviewEvents(id),
+                        new AnalysisRunMetadata(row.getString("retrieval_version"),
+                                row.getString("prompt_version"), row.getString("embedding_model"),
+                                row.getString("chat_model"))))
                 .optional();
     }
 

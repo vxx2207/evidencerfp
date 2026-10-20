@@ -39,6 +39,22 @@ jobs:
       - name: Backend testen
         run: ./mvnw --batch-mode --no-transfer-progress verify
 
+      - name: Backend-OpenAPI-Vertrag erzwingen
+        shell: bash
+        run: |
+          report="target/surefire-reports/TEST-com.certaaccess.evidencerfp.analysis.api.OpenApiContractTest.xml"
+          test -f "$report"
+          python - "$report" <<'PY'
+          import sys
+          import xml.etree.ElementTree as ET
+
+          suite = ET.parse(sys.argv[1]).getroot()
+          counts = {name: int(suite.attrib.get(name, "0"))
+                    for name in ("tests", "errors", "failures", "skipped")}
+          assert counts["tests"] == 1, f"OpenAPI-Vertragstest fehlt oder ist mehrdeutig: {counts}"
+          assert counts["errors"] == counts["failures"] == counts["skipped"] == 0, counts
+          PY
+
       - name: Ausführung der Production-Integrationstests erzwingen
         shell: bash
         run: |
@@ -51,7 +67,7 @@ jobs:
           suite = ET.parse(sys.argv[1]).getroot()
           counts = {name: int(suite.attrib.get(name, "0"))
                     for name in ("tests", "errors", "failures", "skipped")}
-          assert counts["tests"] >= 18, f"Zu wenige Production-Integrationstests: {counts}"
+          assert counts["tests"] == 19, f"Erwartet werden exakt 19 Production-Integrationstests: {counts}"
           assert counts["errors"] == counts["failures"] == counts["skipped"] == 0, counts
           PY
 
@@ -75,8 +91,25 @@ jobs:
 
       - name: Optionale KI-Adapter kompilieren
         run: |
-          ./mvnw --batch-mode --no-transfer-progress -Pollama -Dtest=EmbeddingProviderSupportTest test
-          ./mvnw --batch-mode --no-transfer-progress -Popenai -DskipTests compile
+          ./mvnw --batch-mode --no-transfer-progress -Pollama \
+            -Dtest=EmbeddingProviderSupportTest,OllamaAnswerGeneratorProviderTest test
+          ./mvnw --batch-mode --no-transfer-progress -Popenai clean compile -DskipTests
+
+      - name: Optionales Ollama-Evaluationsprofil ohne Opt-in prüfen
+        shell: bash
+        run: |
+          ./mvnw --batch-mode --no-transfer-progress -Pollama-eval clean verify
+          report="target/ollama-eval-build/failsafe-reports/TEST-com.certaaccess.evidencerfp.evaluation.OllamaGoldenSetEvaluationIT.xml"
+          test -f "$report"
+          python - "$report" <<'PY'
+          import sys
+          import xml.etree.ElementTree as ET
+
+          suite = ET.parse(sys.argv[1]).getroot()
+          counts = {name: int(suite.attrib.get(name, "0"))
+                    for name in ("tests", "errors", "failures", "skipped")}
+          assert counts == {"tests": 1, "errors": 0, "failures": 0, "skipped": 1}, counts
+          PY
 
   frontend:
     name: Frontend · Node 22

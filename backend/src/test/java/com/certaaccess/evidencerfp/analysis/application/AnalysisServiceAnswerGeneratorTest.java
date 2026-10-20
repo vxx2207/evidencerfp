@@ -59,6 +59,9 @@ class AnalysisServiceAnswerGeneratorTest {
 
         assertThat(accepted.status()).isEqualTo(AnalysisStatus.PROCESSING);
         assertThat(result.status()).isEqualTo(AnalysisStatus.COMPLETED);
+        assertThat(accepted.runMetadata().retrievalVersion())
+                .isEqualTo(EvidenceRetriever.DEFAULT_VERSION);
+        assertThat(result.runMetadata()).isEqualTo(accepted.runMetadata());
         assertThat(result.questions()).singleElement().satisfies(answer -> {
             assertThat(answer.answer()).isEqualTo("Vom Fake-Generator belegt.");
             assertThat(answer.answerStatus()).isEqualTo(AnswerStatus.SUPPORTED);

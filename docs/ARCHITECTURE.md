@@ -90,6 +90,10 @@ wörtliches Zitat, Zahlen, zentrale Entitäten und Negationen. Vollständig bele
 `SUPPORTED`, eine belegte Teilmenge `PARTIAL` und kein belegter Claim `NOT_FOUND`. Provider- oder
 Schemafehler beenden die Analyse technisch und werden nie zu `NOT_FOUND` umgedeutet.
 
+Die Adapter besitzen ein hartes Budget von höchstens zwei Wiederholungen für Timeouts,
+HTTP 429 und 5xx. Spring AIs eigene Retry-Schicht ist mit `spring.ai.retry.max-attempts: 0`
+bewusst deaktiviert, damit sich beide Ebenen nicht multiplizieren.
+
 ## Konsistenz und API-Vertrag
 
 - Vollständige Analyse-, Status- und Exportansichten werden als `REPEATABLE_READ`-Snapshot geladen.
@@ -100,7 +104,12 @@ Schemafehler beenden die Analyse technisch und werden nie zu `NOT_FOUND` umgedeu
 - `/result`, Review und Export sind vor `COMPLETED` mit 409 `ANALYSIS_NOT_READY` gesperrt.
 - RFC-7807-Antworten enthalten sichere Fehlercodes, aber keine Parser- oder Providerdetails.
 - Der Vertrag liegt unter [`openapi/evidence-rfp-v1.yaml`](openapi/evidence-rfp-v1.yaml); der
-  TypeScript-Client wird in CI daraus neu generiert und auf Drift geprüft.
+  TypeScript-Client wird in CI daraus neu generiert und auf Drift geprüft. Zusätzlich ruft
+  `OpenApiContractTest` die von Springdoc aus den realen Controllern und DTOs erzeugte
+  `/v3/api-docs`-Ausgabe ab. Routen, Methoden, Operation-IDs, Parameter, Request Bodies,
+  Statuscodes, Header, Medientypen sowie rekursiv aufgelöste Schemaformen mit Pflichtfeldern und
+  dokumentierten Constraints müssen dem versionierten Vertrag entsprechen; der Backend-CI-Job
+  prüft ausdrücklich, dass dieses Gate ausgeführt wurde.
 
 ## Betriebsnachweis
 

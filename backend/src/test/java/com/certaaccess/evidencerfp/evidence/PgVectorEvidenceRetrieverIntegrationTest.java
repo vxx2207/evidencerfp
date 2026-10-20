@@ -8,6 +8,7 @@ import com.certaaccess.evidencerfp.analysis.application.EvidenceAnswerPolicy;
 import com.certaaccess.evidencerfp.analysis.domain.Analysis;
 import com.certaaccess.evidencerfp.analysis.domain.AnalysisJob;
 import com.certaaccess.evidencerfp.analysis.domain.AnalysisJobStatus;
+import com.certaaccess.evidencerfp.analysis.domain.AnalysisRunMetadata;
 import com.certaaccess.evidencerfp.analysis.domain.AnalysisStatus;
 import com.certaaccess.evidencerfp.analysis.domain.AnalysisUpload;
 import com.certaaccess.evidencerfp.analysis.domain.AnalysisUploadKind;
@@ -611,6 +612,11 @@ class PgVectorEvidenceRetrieverIntegrationTest {
         transaction.executeWithoutResult(ignored -> repository.enqueue(queued,
                 AnalysisJob.queued(queued.id(), now, 2), List.of(), null, "e".repeat(64)));
 
+        assertThatThrownBy(() -> JdbcClient.create(dataSource).sql("""
+                UPDATE analysis_job SET max_attempts = 3 WHERE analysis_id = :analysisId
+                """).param("analysisId", queued.id()).update())
+                .isInstanceOf(org.springframework.dao.DataIntegrityViolationException.class);
+
         assertThat(repository.claimJob(queued.id(), "worker-one", now, now.plusSeconds(30)))
                 .get().extracting(AnalysisJob::attempt).isEqualTo(1);
         assertThat(repository.claimJob(queued.id(), "worker-two", now.plusSeconds(31),
@@ -656,6 +662,25 @@ class PgVectorEvidenceRetrieverIntegrationTest {
                 processingAnalysis(now.plusSeconds(2)), AnalysisJob.queued(UUID.randomUUID(), now, 2),
                 List.of(), key, "d".repeat(64))))
                 .isInstanceOf(IdempotencyKeyReusedException.class);
+    }
+
+    @Test
+    void persistsTheExactRunMetadataWithTheAnalysisResult() {
+        PGSimpleDataSource dataSource = dataSource();
+        migrateFresh(dataSource);
+        JdbcAnalysisRepository repository = repository(dataSource);
+        Instant now = Instant.parse("2026-10-18T11:00:00Z");
+        AnalysisRunMetadata historical = new AnalysisRunMetadata(
+                "hybrid-v0.1", "claims-v0.9", "bge-m3-old", "llama-old");
+        Analysis analysis = new Analysis(UUID.randomUUID(), "Metadata Test", false,
+                AnalysisStatus.COMPLETED, now, now.plusSeconds(3), List.of(), List.of(), List.of(),
+                historical);
+
+        repository.save(analysis);
+
+        assertThat(repository.findById(analysis.id())).get()
+                .extracting(Analysis::runMetadata)
+                .isEqualTo(historical);
     }
 
     private PGSimpleDataSource dataSource() {

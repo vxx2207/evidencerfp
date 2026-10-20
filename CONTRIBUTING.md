@@ -28,6 +28,10 @@ cd backend
 ./mvnw spring-boot:run
 ```
 
+Bei Änderungen an Controller, API-DTOs oder Fehlerantworten muss zusätzlich
+`docs/openapi/evidence-rfp-v1.yaml` bewusst aktualisiert werden. `OpenApiContractTest` vergleicht
+die echte `/v3/api-docs`-Ausgabe mit diesem Vertrag und lässt den Backend-CI-Job bei Drift scheitern.
+
 Frontend testen:
 
 ```bash
@@ -43,7 +47,7 @@ Unter Windows `mvnw.cmd` statt `./mvnw` verwenden. Die vollständige lokale KI-K
 
 1. Einen kleinen, thematisch eindeutigen Branch anlegen.
 2. Tests für geändertes Verhalten ergänzen.
-3. Dokumentation und Beispiel-Fixtures bei Schnittstellenänderungen aktualisieren.
+3. OpenAPI-Vertrag, Dokumentation und Beispiel-Fixtures bei Schnittstellenänderungen aktualisieren.
 4. Vor dem Push Backend-Tests, Frontend-Tests und Build ausführen.
 5. Im Pull Request Problem, Lösung, Testnachweis und Sicherheitsauswirkung beschreiben.
 

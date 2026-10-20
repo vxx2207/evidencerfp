@@ -9,11 +9,14 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 
 final class EmbeddingProviderSupport {
+    private static final int MAX_RETRIES = 2;
+
     private EmbeddingProviderSupport() { }
 
     static <T> T call(Callable<T> providerCall, Duration timeout, int maxRetries) {
+        int retryBudget = Math.min(MAX_RETRIES, Math.max(0, maxRetries));
         RuntimeException lastFailure = null;
-        for (int attempt = 0; attempt <= maxRetries; attempt++) {
+        for (int attempt = 0; attempt <= retryBudget; attempt++) {
             FutureTask<T> future = new FutureTask<>(providerCall);
             Thread worker = Thread.ofVirtual().name("embedding-provider-").start(future);
             try {
@@ -39,7 +42,7 @@ final class EmbeddingProviderSupport {
                 if (!future.isDone()) future.cancel(true);
                 if (future.isCancelled()) worker.interrupt();
             }
-            if (attempt < maxRetries) backoff(attempt);
+            if (attempt < retryBudget) backoff(attempt);
         }
         throw new EvidenceProviderException("EMBEDDING_RETRIES_EXHAUSTED",
                 "Der Embedding-Provider war nach mehreren Versuchen nicht erreichbar.", lastFailure);

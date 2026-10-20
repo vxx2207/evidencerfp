@@ -12,6 +12,7 @@ import com.certaaccess.evidencerfp.evidence.UploadValidator;
 import com.certaaccess.evidencerfp.iam.IamControlEvaluator;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
+import org.springframework.mock.web.MockMultipartFile;
 import tools.jackson.databind.ObjectMapper;
 
 import java.nio.file.Path;
@@ -84,6 +85,36 @@ class AnalysisServiceCleanupTest {
         service.recoverRunnableJobs();
 
         assertThat(storage.deleted).containsExactly(orphanId);
+    }
+
+    @Test
+    void capsConfiguredJobAttemptsAtTwo() {
+        Instant now = Instant.parse("2026-10-19T12:00:00Z");
+        Clock clock = Clock.fixed(now, ZoneOffset.UTC);
+        InMemoryAnalysisRepository repository = new InMemoryAnalysisRepository(new DemoAnalysisFactory());
+        RfpParser parser = mock(RfpParser.class);
+        org.mockito.Mockito.when(parser.parse(org.mockito.ArgumentMatchers.any()))
+                .thenReturn(List.of());
+        AnalysisService service = new AnalysisService(repository, mock(UploadValidator.class), parser,
+                mock(EvidenceExtractor.class), new EmptyRetriever(), mock(AnswerGenerator.class),
+                new IamControlEvaluator(clock), new ObjectMapper(), clock, Runnable::run, null,
+                new AnalysisUploadStorage(temporaryDirectory.toString()), 30, 10, 99, 8);
+
+        Analysis accepted = service.create("Versuchsgrenze",
+                new MockMultipartFile("rfp", "rfp.xlsx",
+                        "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                        new byte[]{1}), List.of(), null);
+
+        assertThat(service.getJob(accepted.id()).maxAttempts()).isEqualTo(2);
+    }
+
+    private static final class EmptyRetriever implements EvidenceRetriever {
+        @Override
+        public List<com.certaaccess.evidencerfp.evidence.EvidenceChunk> retrieve(
+                com.certaaccess.evidencerfp.evidence.RfpQuestion question,
+                List<com.certaaccess.evidencerfp.evidence.EvidenceChunk> availableChunks, int limit) {
+            return List.of();
+        }
     }
 
     private static final class AlwaysFailingStorage extends AnalysisUploadStorage {

@@ -1,6 +1,11 @@
 spring:
   application:
     name: evidence-rfp
+  ai:
+    # Provider-Retries werden ausschließlich durch die fail-closed Adapter gesteuert.
+    # Null Spring-AI-Wiederholungen verhindern eine zweite, versteckte Retry-Kaskade.
+    retry:
+      max-attempts: 0
   profiles:
     default: demo
   servlet:

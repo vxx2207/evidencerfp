@@ -106,7 +106,7 @@ paths:
               type: object
               minProperties: 1
               properties:
-                answer: { type: string }
+                answer: { type: string, maxLength: 10000 }
                 reviewStatus: { $ref: '#/components/schemas/ReviewStatus' }
       responses:
         '200':

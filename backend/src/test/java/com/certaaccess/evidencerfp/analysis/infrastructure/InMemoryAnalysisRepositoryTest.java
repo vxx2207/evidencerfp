@@ -88,8 +88,11 @@ class InMemoryAnalysisRepositoryTest {
         assertThat(repository.deleteById(processing.id(), now.plusSeconds(1))).isTrue();
         assertThat(repository.findById(processing.id())).isEmpty();
         assertThat(repository.findJobByAnalysisId(processing.id())).get()
-                .extracting(AnalysisJob::status)
-                .isEqualTo(com.certaaccess.evidencerfp.analysis.domain.AnalysisJobStatus.CANCELLED);
+                .satisfies(job -> {
+                    assertThat(job.status()).isEqualTo(
+                            com.certaaccess.evidencerfp.analysis.domain.AnalysisJobStatus.CANCELLED);
+                    assertThat(job.cancelRequested()).isTrue();
+                });
         assertThat(repository.claimCleanupTasks("cleanup", now.plusSeconds(1),
                 now.plusSeconds(31), 10)).containsExactly(processing.id());
         assertThat(repository.completeCleanup(processing.id(), "cleanup", now.plusSeconds(2))).isTrue();

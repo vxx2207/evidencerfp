@@ -1,5 +1,6 @@
 package com.certaaccess.evidencerfp.evidence;
 
+import com.certaaccess.evidencerfp.analysis.domain.AnalysisRunMetadata;
 import org.springframework.context.annotation.Profile;
 import org.springframework.jdbc.core.simple.JdbcClient;
 import org.springframework.stereotype.Component;
@@ -20,7 +21,7 @@ import java.util.UUID;
 @Component
 @Profile("production")
 public class PgVectorEvidenceRetriever implements EvidenceRetriever {
-    public static final String RETRIEVAL_VERSION = "hybrid-pgvector-fts-rrf-v1";
+    public static final String RETRIEVAL_VERSION = AnalysisRunMetadata.RETRIEVAL_VERSION;
     static final int CANDIDATE_LIMIT = 12;
     static final int FINAL_LIMIT = 6;
     static final int RRF_K = 60;
@@ -32,6 +33,11 @@ public class PgVectorEvidenceRetriever implements EvidenceRetriever {
     public PgVectorEvidenceRetriever(JdbcClient jdbc, EvidenceEmbeddingProvider embeddingProvider) {
         this.jdbc = jdbc;
         this.embeddingProvider = embeddingProvider;
+    }
+
+    @Override
+    public String version() {
+        return RETRIEVAL_VERSION;
     }
 
     @Override

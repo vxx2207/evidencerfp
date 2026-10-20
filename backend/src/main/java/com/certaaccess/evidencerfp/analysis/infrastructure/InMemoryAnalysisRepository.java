@@ -123,7 +123,8 @@ public class InMemoryAnalysisRepository implements AnalysisRepository {
                     AnalysisJobStatus.FAILED, "JOB_RETRIES_EXHAUSTED", now));
             if (analysis != null) {
                 analyses.put(id, new Analysis(analysis.id(), analysis.customerName(), analysis.synthetic(),
-                        AnalysisStatus.FAILED, analysis.createdAt(), now, List.of(), List.of(), List.of()));
+                        AnalysisStatus.FAILED, analysis.createdAt(), now, List.of(), List.of(), List.of(),
+                        analysis.runMetadata()));
             }
             scheduleCleanup(id, now);
         }
@@ -188,7 +189,8 @@ public class InMemoryAnalysisRepository implements AnalysisRepository {
         jobs.put(analysisId, copy(current, AnalysisPhase.FAILED, current.progressPercent(), now, null,
                 AnalysisJobStatus.FAILED, failureCode, now));
         analyses.put(analysisId, new Analysis(existing.id(), existing.customerName(), existing.synthetic(),
-                AnalysisStatus.FAILED, existing.createdAt(), now, List.of(), List.of(), List.of()));
+                AnalysisStatus.FAILED, existing.createdAt(), now, List.of(), List.of(), List.of(),
+                existing.runMetadata()));
         scheduleCleanup(analysisId, now);
         return true;
     }
@@ -263,8 +265,10 @@ public class InMemoryAnalysisRepository implements AnalysisRepository {
         if (removed == null) return false;
         AnalysisJob current = jobs.get(id);
         if (current != null) {
-            jobs.put(id, copy(current, AnalysisPhase.CANCELLED, current.progressPercent(), now, null,
-                    AnalysisJobStatus.CANCELLED, null, now));
+            jobs.put(id, new AnalysisJob(current.analysisId(), AnalysisJobStatus.CANCELLED,
+                    AnalysisPhase.CANCELLED, current.progressPercent(), current.attempt(),
+                    current.maxAttempts(), null, null, now, null, true,
+                    current.createdAt(), now, current.startedAt()));
         }
         scheduleCleanup(id, now);
         idempotency.entrySet().removeIf(entry -> entry.getValue().analysisId().equals(id));

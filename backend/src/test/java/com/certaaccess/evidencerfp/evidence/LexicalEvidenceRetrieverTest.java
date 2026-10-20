@@ -23,6 +23,31 @@ class LexicalEvidenceRetrieverTest {
         assertThat(result).containsExactly(relevant, partial);
     }
 
+    @Test
+    void defaultProvenanceUsesTheRetrieverReportedVersion() {
+        EvidenceChunk evidence = chunk("Phishing-resistente MFA ist verpflichtend.");
+        EvidenceRetriever versioned = new EvidenceRetriever() {
+            @Override
+            public String version() {
+                return "custom-retriever-v7";
+            }
+
+            @Override
+            public List<EvidenceChunk> retrieve(RfpQuestion question,
+                                                List<EvidenceChunk> availableChunks, int limit) {
+                return availableChunks.stream().limit(limit).toList();
+            }
+        };
+        RfpQuestion question = new RfpQuestion("1", "Ist MFA verpflichtend?", "IAM");
+
+        assertThat(versioned.retrieveWithProvenance(question, List.of(evidence), 1)
+                .matches().getFirst().provenance().retrievalVersion())
+                .isEqualTo("custom-retriever-v7");
+        assertThat(versioned.retrieveBatchWithProvenance(List.of(question), List.of(evidence), 1)
+                .get("1").matches().getFirst().provenance().retrievalVersion())
+                .isEqualTo("custom-retriever-v7");
+    }
+
     private EvidenceChunk chunk(String content) {
         return new EvidenceChunk(UUID.randomUUID(), "beleg.pdf", "application/pdf", "Seite 1", content, null);
     }

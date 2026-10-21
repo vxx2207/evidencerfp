@@ -4,6 +4,10 @@ updates:
     directory: /frontend
     schedule:
       interval: weekly
+    ignore:
+      - dependency-name: "typescript"
+        update-types:
+          - version-update:semver-major
     groups:
       frontend-dependencies:
         patterns:
@@ -13,6 +17,10 @@ updates:
     directory: /backend
     schedule:
       interval: weekly
+    ignore:
+      - dependency-name: "org.apache.tika:*"
+        update-types:
+          - version-update:semver-major
     groups:
       backend-dependencies:
         patterns:

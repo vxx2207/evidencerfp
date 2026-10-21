@@ -1,0 +1,33 @@
+WEBVTT
+
+00:00:00.000 --> 00:00:25.000
+Problem und Ziel
+Security-Fragebögen kosten Presales Zeit. EvidenceRFP erstellt belegte Entwürfe statt freier KI-Antworten.
+
+00:00:25.000 --> 00:00:45.000
+Synthetische Demo · lokale Verarbeitung
+24 Fragen, fünf Produktdokumente und ein IAM-Snapshot durchlaufen Retrieval, Regelprüfungen und Human Review.
+
+00:00:45.000 --> 00:01:20.000
+Belegte Antwort · IAM-001
+Ein Klick öffnet die vollständige Passage. Quelle, Chunk-ID und Zitat werden serverseitig geprüft.
+
+00:01:20.000 --> 00:01:55.000
+Quellenkonflikt · IAM-020
+365 und 180 Tage stehen nebeneinander. Der Widerspruch bleibt sichtbar und sperrt die Freigabe.
+
+00:01:55.000 --> 00:02:25.000
+Bewusstes Nichtwissen · IAM-022
+Fehlt der Nachweis, bleibt die Antwort NOT_FOUND. Statt einer Halluzination entsteht eine interne Klärungsfrage.
+
+00:02:25.000 --> 00:03:00.000
+Deterministische IAM-Kontrolle
+Regeln finden fehlende phishing-resistente MFA, verwaiste Privilegien und alte Service-Secrets – ohne LLM-Entscheidung.
+
+00:03:00.000 --> 00:03:40.000
+Human Gate und Evidence Pack
+Der Sales Engineer entscheidet die letzte offene Frage. Erst danach wird der XLSX-Export mit vier prüfbaren Blättern aktiv.
+
+00:03:40.000 --> 00:04:00.000
+Geschäftswert
+Das synthetische ROI-Modell legt Annahmen offen: schnelleres Research, weniger unbelegte Zusagen und ein auditierbares Ergebnis.

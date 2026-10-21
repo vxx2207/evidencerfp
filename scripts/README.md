@@ -28,6 +28,24 @@ Set-Location backend
 
 Der Maven Exec-Einstiegspunkt ist `com.certaaccess.evidencerfp.sample.SampleDataGenerator`. Ein Lauf ersetzt vorhandene generierte Dateien deterministisch, ohne Quelldateien zu verändern.
 
+## Vier-Minuten-Deep-Dive aufnehmen
+
+Nach `npm ci` im Verzeichnis `frontend/` lässt sich die vollständige synthetische Demo vom Repository-Root reproduzierbar aufnehmen:
+
+```powershell
+node scripts/record-deep-dive.mjs
+```
+
+Das Script startet bei Bedarf die lokale Vite-Demo auf `127.0.0.1:4173`, zeichnet die fünf festen Tour-Stationen bei 1440 × 900 Pixeln auf, blendet deutsche Abschnittstitel und Untertitel direkt ins Bild ein, exportiert das Evidence Pack und setzt den Demozustand am Ende zurück. Das Ergebnis landet unter `docs/assets/evidencerfp-deep-dive-4m.webm`; die separate WebVTT-Datei liegt daneben.
+
+Ein schneller Funktionscheck ohne versioniertes Video dauert nur wenige Sekunden:
+
+```powershell
+node scripts/record-deep-dive.mjs --dry-run
+```
+
+Mit `EVIDENCERFP_DEMO_URL` kann stattdessen eine bereits laufende Demo angegeben werden. Auch dann bleiben sämtliche sichtbaren Daten synthetisch.
+
 ## Erwartete Validierung
 
 Nach der Erzeugung:

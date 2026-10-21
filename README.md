@@ -57,6 +57,8 @@ Identity Security verbindet technische Tiefe mit einem klaren Presales-Prozess: 
 
 ## Vier Minuten Demo-Story
 
+Die [vollständige Vier-Minuten-Aufnahme mit eingebrannten deutschen Untertiteln](docs/assets/evidencerfp-deep-dive-4m.webm) zeigt den Ablauf ohne Vorbereitung; eine separate [WebVTT-Datei](docs/assets/evidencerfp-deep-dive-4m.vtt) ist ebenfalls verfügbar. Alle sichtbaren Daten sind synthetisch.
+
 1. **Import:** Ein Security-Fragebogen der fiktiven Nordstern Bank wird geladen.
 2. **Analyse:** Fünf synthetische CertaAccess-Dokumente werden durchsucht; ein IAM-Snapshot durchläuft drei reproduzierbare Kontrollen.
 3. **Review:** Eine belegte Antwort öffnet die genaue Quellpassage. Ein Widerspruch wird nebeneinander angezeigt. Eine unbeantwortbare Frage erzeugt eine interne Klärungsfrage.
@@ -237,6 +239,7 @@ Der Import ist als persistenter lokaler Hintergrundjob umgesetzt: `POST /analyse
 - [Security und Grenzen](docs/SECURITY_LIMITATIONS.md)
 - [90-Sekunden-Storyboard und Aufnahmeplan](docs/DEMO_90_SECONDS.md)
 - [Demo Talk Track](docs/DEMO_TALK_TRACK.md)
+- [Reproduzierbare Vier-Minuten-Aufnahme](scripts/README.md#vier-minuten-deep-dive-aufnehmen)
 - [Release-Checkliste](docs/RELEASE_CHECKLIST.md)
 - [Beispieldaten und erwartete Ergebnisse](examples/README.md)
 

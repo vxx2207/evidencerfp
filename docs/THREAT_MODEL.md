@@ -1,6 +1,6 @@
 # Threat Model
 
-Stand: 18. Oktober 2026 · Gültig für EvidenceRFP 0.2 mit ausschließlich synthetischen Daten.
+Stand: 19. Oktober 2026 · Gültig für EvidenceRFP 0.2 mit ausschließlich synthetischen Daten.
 
 ## Schutzgüter und Vertrauensgrenzen
 
@@ -31,6 +31,7 @@ flowchart LR
 | Halluzinierte Zitation oder gegenteiliger Claim | Falscher Nachweis | erlaubte Chunk-ID, exaktes Zitat, Zahlen, zentrale Entitäten und Negationen werden geprüft | semantisch irreführende, aber formal passende Passage |
 | Manipulierte oder übergroße Modellausgabe | Parserlast oder eingeschleuste Felder | exaktes Claim-Schema, Feld- und Listenlimits sowie 600.000-Zeichen-Gesamtlimit | formal gültige, aber fachlich irreführende Ausgabe |
 | Prozessabbruch während Analyse | dauerhaft hängender oder doppelt finalisierter Job | Lease/Heartbeat, vollständiger idempotenter Neustart, höchstens zwei Versuche und CAS-Finalisierung | lokale Rohdatei geht durch externen Datenträgerfehler verloren |
+| Prozessabbruch während Dateibereinigung | Rohdatei bleibt ohne aktiven Worker zurück | transaktionaler Cleanup-Outbox, eigene Lease, idempotente Wiederholung und Orphan-Sweeper | wiederholter Datenträgerfehler verzögert Löschung |
 | Gelöschte Analyse wird durch alten Worker neu angelegt | unerwartete Datenwiederkehr | atomarer Abbruch und Finalisierung ausschließlich aus `PROCESSING` durch aktuellen Lease-Besitzer | Administrator manipuliert Datenbank direkt |
 | Parallele Reviewänderungen überschreiben sich | verlorene Freigabe oder Auditlücke | Fragenrevision, `If-Match`, 412 und Audit-Ereignis in derselben Transaktion | keine Benutzeridentität im MVP |
 | Datenabfluss an KI-Provider | Vertrauliche Inhalte verlassen System | Ollama lokal als Default; Cloud nur explizit mit eigenem Schlüssel | Fehlkonfiguration bei Cloud-Nutzung |
@@ -65,7 +66,8 @@ Der MVP besitzt keine Authentifizierung, Rollen, Mandantenisolation, Verschlüss
 - Exporttest für alle vier Formula-Injection-Präfixe
 - Tests, dass Konflikte die Freigabe verhindern und Negativfragen `NOT_FOUND` bleiben
 - 80-Fälle-Golden-Set mit Gates für Recall@6, MRR, Status-Macro-F1, Pflichtbegriffe, Zitationen und `NOT_FOUND`
-- Testcontainers-Tests für zwei Worker, Lease-Recovery, Löschrennen, optimistische Reviews und Hybrid Retrieval
+- Testcontainers-Tests für zwei Worker, Analyse- und Cleanup-Lease-Recovery, Löschrennen,
+  optimistische Reviews und Hybrid Retrieval
 - positive und negative Fixtures für alle drei IAM-Regeln
 
 Vor einer produktiven Nutzung fehlen insbesondere Malware-Scanning beziehungsweise Parser-Sandboxing und modellübergreifendes Prompt-Injection-Red-Teaming.

@@ -6,7 +6,6 @@ import org.springframework.stereotype.Component;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
-import java.util.Locale;
 
 /**
  * Deterministischer Offline-Fallback für den Production-Stack ohne aktiviertes KI-Profil.
@@ -17,19 +16,23 @@ import java.util.Locale;
 public class HashingEvidenceEmbeddingProvider implements EvidenceEmbeddingProvider {
     @Override
     public String modelId() {
-        return "hashing-1024-v1";
+        return "hashing-1024-v2";
     }
 
     @Override
     public float[] embed(String text) {
         float[] vector = new float[DIMENSIONS];
-        String[] terms = text.toLowerCase(Locale.GERMAN).split("[^\\p{L}\\p{N}]+");
-        for (String term : terms) {
-            if (term.length() < 3) continue;
+        for (String term : EvidenceTextTerms.tokens(text)) {
             byte[] digest = sha256(term);
             int index = ((digest[0] & 0xff) << 8 | (digest[1] & 0xff)) % DIMENSIONS;
             float sign = (digest[2] & 1) == 0 ? 1f : -1f;
             vector[index] += sign;
+
+            // Ein zweiter unabhängiger Feature-Bucket reduziert einzelne Hash-Kollisionen,
+            // ohne die feste 1.024-dimensionale Offline-Schnittstelle zu verändern.
+            int secondaryIndex = ((digest[3] & 0xff) << 8 | (digest[4] & 0xff)) % DIMENSIONS;
+            float secondarySign = (digest[5] & 1) == 0 ? 0.5f : -0.5f;
+            vector[secondaryIndex] += secondarySign;
         }
         double sum = 0;
         for (float value : vector) sum += value * value;

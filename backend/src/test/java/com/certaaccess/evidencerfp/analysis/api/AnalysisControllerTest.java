@@ -4,12 +4,14 @@ import com.certaaccess.evidencerfp.analysis.application.AnalysisExporter;
 import com.certaaccess.evidencerfp.analysis.application.AnalysisCapacityExceededException;
 import com.certaaccess.evidencerfp.analysis.application.AnalysisNotReadyException;
 import com.certaaccess.evidencerfp.analysis.application.AnalysisService;
+import com.certaaccess.evidencerfp.analysis.application.AnalysisStatusSnapshot;
 import com.certaaccess.evidencerfp.analysis.application.DemoAnalysisFactory;
 import com.certaaccess.evidencerfp.analysis.application.EditConflictException;
 import com.certaaccess.evidencerfp.analysis.domain.Analysis;
 import com.certaaccess.evidencerfp.analysis.domain.AnalysisJob;
 import com.certaaccess.evidencerfp.analysis.domain.AnalysisJobStatus;
 import com.certaaccess.evidencerfp.analysis.domain.AnalysisPhase;
+import com.certaaccess.evidencerfp.analysis.domain.AnalysisRunMetadata;
 import com.certaaccess.evidencerfp.analysis.domain.AnalysisStatus;
 import com.certaaccess.evidencerfp.analysis.domain.ApprovalBlockedException;
 import com.certaaccess.evidencerfp.analysis.domain.AnswerStatus;
@@ -28,6 +30,7 @@ import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 import java.time.Clock;
 import java.time.Instant;
 import java.util.List;
+import java.util.Optional;
 
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyList;
@@ -36,6 +39,7 @@ import static org.mockito.ArgumentMatchers.isNull;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doNothing;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.when;
 import static org.mockito.Mockito.verify;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
@@ -59,6 +63,8 @@ class AnalysisControllerTest {
         when(service.get(DemoAnalysisFactory.DEMO_ID)).thenReturn(demo);
         when(service.getCompleted(DemoAnalysisFactory.DEMO_ID)).thenReturn(demo);
         when(service.getJob(DemoAnalysisFactory.DEMO_ID)).thenReturn(completedJob());
+        when(service.getStatusSnapshot(DemoAnalysisFactory.DEMO_ID)).thenReturn(
+                new AnalysisStatusSnapshot(demo, Optional.of(completedJob())));
         AnalysisController controller = new AnalysisController(service, new AnalysisExporter(),
                 new UploadValidationProperties(10_485_760, 52_428_800, 20),
                 new IamControlEvaluator(Clock.systemUTC()), "deterministic-demo", false);
@@ -79,7 +85,8 @@ class AnalysisControllerTest {
                 .andExpect(jsonPath("$.limits.maxOoxmlExpandedBytes").value(104857600))
                 .andExpect(jsonPath("$.limits.maxOoxmlCompressionRatio").value(100.0))
                 .andExpect(jsonPath("$.models.chat").value("deterministic-answer-v2"))
-                .andExpect(jsonPath("$.retrievalVersion").value("hybrid-pgvector-fts-rrf-v1"))
+                .andExpect(jsonPath("$.retrievalVersion").value("lexical-deterministic-v2"))
+                .andExpect(jsonPath("$.dataFlow[2]").value("Lexical Retrieval"))
                 .andExpect(jsonPath("$.dataFlow.length()").value(6));
 
         mvc.perform(get("/api/v1/analyses/{id}/result", DemoAnalysisFactory.DEMO_ID))
@@ -91,8 +98,25 @@ class AnalysisControllerTest {
                 .andExpect(jsonPath("$.reviewEvents.length()").value(24))
                 .andExpect(jsonPath("$.reviewEvents[0].provenance").value("GENERATED"))
                 .andExpect(jsonPath("$.reviewRevision").value(0))
-                .andExpect(jsonPath("$.runMetadata.retrievalVersion").value("hybrid-pgvector-fts-rrf-v1"))
+                .andExpect(jsonPath("$.runMetadata.retrievalVersion").value("precomputed-demo-v1"))
+                .andExpect(jsonPath("$.runMetadata.embeddingModel").value("precomputed-synthetic-fixture"))
                 .andExpect(jsonPath("$.runMetadata.citationValidation").isNotEmpty());
+    }
+
+    @Test
+    void exposesPersistedRunMetadataInsteadOfCurrentControllerModels() throws Exception {
+        Analysis historical = new Analysis(demo.id(), demo.customerName(), demo.synthetic(),
+                demo.status(), demo.createdAt(), demo.completedAt(), demo.questions(), demo.findings(),
+                demo.evidenceDocuments(), demo.reviewEvents(), new AnalysisRunMetadata(
+                        "hybrid-v0.1", "claims-v0.9", "historical-embedding", "historical-chat"));
+        when(service.getCompleted(DemoAnalysisFactory.DEMO_ID)).thenReturn(historical);
+
+        mvc.perform(get("/api/v1/analyses/{id}/result", DemoAnalysisFactory.DEMO_ID))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.runMetadata.retrievalVersion").value("hybrid-v0.1"))
+                .andExpect(jsonPath("$.runMetadata.promptVersion").value("claims-v0.9"))
+                .andExpect(jsonPath("$.runMetadata.embeddingModel").value("historical-embedding"))
+                .andExpect(jsonPath("$.runMetadata.chatModel").value("historical-chat"));
     }
 
     @Test
@@ -110,6 +134,20 @@ class AnalysisControllerTest {
                         + DemoAnalysisFactory.DEMO_ID))
                 .andExpect(jsonPath("$.progressPercent").value(100));
         verify(service).create(isNull(), any(), anyList(), isNull(), eq("import-123"));
+        verify(service).getStatusSnapshot(DemoAnalysisFactory.DEMO_ID);
+        verify(service, never()).getJob(DemoAnalysisFactory.DEMO_ID);
+    }
+
+    @Test
+    void readsAnalysisAndJobAsOneStatusSnapshot() throws Exception {
+        mvc.perform(get("/api/v1/analyses/{id}", DemoAnalysisFactory.DEMO_ID))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.status").value("COMPLETED"))
+                .andExpect(jsonPath("$.phase").value("COMPLETED"));
+
+        verify(service).getStatusSnapshot(DemoAnalysisFactory.DEMO_ID);
+        verify(service, never()).get(DemoAnalysisFactory.DEMO_ID);
+        verify(service, never()).getJob(DemoAnalysisFactory.DEMO_ID);
     }
 
     @Test

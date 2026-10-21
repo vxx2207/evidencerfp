@@ -1,5 +1,6 @@
 package com.certaaccess.evidencerfp.evidence;
 
+import com.certaaccess.evidencerfp.analysis.infrastructure.AnalysisUploadStorage;
 import org.apache.poi.ss.usermodel.DataFormatter;
 import org.apache.poi.ss.usermodel.Row;
 import org.apache.poi.ss.usermodel.Sheet;
@@ -11,6 +12,10 @@ import org.springframework.stereotype.Component;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.io.IOException;
+import java.io.InputStream;
+import java.io.OutputStream;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -39,7 +44,8 @@ public class RfpParser {
     }
 
     private List<RfpQuestion> parseWorkbook(MultipartFile file) {
-        try (Workbook workbook = WorkbookFactory.create(file.getInputStream())) {
+        try (WorkbookFileSource source = openWorkbookSource(file);
+             Workbook workbook = WorkbookFactory.create(source.path().toFile())) {
             if (workbook.getNumberOfSheets() == 0) {
                 throw new InvalidUploadException("Die RFP-Datei enthält kein Arbeitsblatt.");
             }
@@ -89,6 +95,21 @@ public class RfpParser {
         }
     }
 
+    private WorkbookFileSource openWorkbookSource(MultipartFile file) throws IOException {
+        if (file instanceof AnalysisUploadStorage.PathMultipartFile storedUpload) {
+            return new WorkbookFileSource(storedUpload.trustedReadPath(), false);
+        }
+        Path temporaryPath = Files.createTempFile("evidencerfp-rfp-", ".xlsx");
+        try (InputStream input = file.getInputStream();
+             OutputStream output = Files.newOutputStream(temporaryPath)) {
+            input.transferTo(output);
+            return new WorkbookFileSource(temporaryPath, true);
+        } catch (IOException | RuntimeException exception) {
+            Files.deleteIfExists(temporaryPath);
+            throw exception;
+        }
+    }
+
     private Map<String, Integer> columns(Row header, DataFormatter formatter) {
         Map<String, Integer> columns = new HashMap<>();
         for (int index = header.getFirstCellNum(); index < header.getLastCellNum(); index++) {
@@ -100,5 +121,12 @@ public class RfpParser {
 
     private String cell(Row row, int column, DataFormatter formatter) {
         return formatter.formatCellValue(row.getCell(column, Row.MissingCellPolicy.RETURN_BLANK_AS_NULL));
+    }
+
+    private record WorkbookFileSource(Path path, boolean deleteAfterUse) implements AutoCloseable {
+        @Override
+        public void close() throws IOException {
+            if (deleteAfterUse) Files.deleteIfExists(path);
+        }
     }
 }

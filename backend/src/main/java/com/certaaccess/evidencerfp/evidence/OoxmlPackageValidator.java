@@ -28,6 +28,9 @@ final class OoxmlPackageValidator {
     private static final int MAX_INSPECTED_XML_BYTES = 2 * 1024 * 1024;
     private static final String CONTENT_TYPES = "[content_types].xml";
     private static final String ROOT_RELATIONSHIPS = "_rels/.rels";
+    private static final Set<String> OFFICE_DOCUMENT_RELATIONSHIP_TYPES = Set.of(
+            "http://schemas.openxmlformats.org/officedocument/2006/relationships/officedocument",
+            "http://purl.oclc.org/ooxml/officedocument/relationships/officedocument");
 
     private final DocumentProcessingProperties properties;
 
@@ -45,6 +48,7 @@ final class OoxmlPackageValidator {
     private void inspect(MultipartFile file, Kind kind) {
         Set<String> entries = new HashSet<>();
         boolean expectedContentType = false;
+        boolean expectedRootRelationship = false;
         long expandedTotal = 0;
         int entryCount = 0;
 
@@ -76,9 +80,13 @@ final class OoxmlPackageValidator {
                 if (inspected != null) {
                     byte[] xml = inspected.toByteArray();
                     if (lowerName.endsWith(".rels")) {
-                        rejectExternalRelationships(xml);
+                        boolean rootRelationships = lowerName.equals(ROOT_RELATIONSHIPS);
+                        boolean validRoot = inspectRelationships(xml, rootRelationships, kind);
+                        if (rootRelationships) {
+                            expectedRootRelationship = validRoot;
+                        }
                     } else {
-                        expectedContentType = hasExpectedMainContentType(xml, kind);
+                        expectedContentType = inspectContentTypes(xml, kind);
                     }
                 }
                 zip.closeEntry();
@@ -92,7 +100,8 @@ final class OoxmlPackageValidator {
         }
 
         if (!entries.contains(CONTENT_TYPES) || !entries.contains(ROOT_RELATIONSHIPS)
-                || !entries.contains(kind.mainPart) || !expectedContentType) {
+                || !entries.contains(kind.mainPart) || !expectedContentType
+                || !expectedRootRelationship) {
             throw invalid("Das Office-Dokument enthält nicht die erwartete OOXML-Struktur.");
         }
     }
@@ -158,51 +167,102 @@ final class OoxmlPackageValidator {
         }
     }
 
-    private void rejectExternalRelationships(byte[] xml) throws XMLStreamException {
+    private boolean inspectRelationships(byte[] xml, boolean rootRelationships, Kind kind)
+            throws XMLStreamException {
+        int officeDocumentRelationships = 0;
+        boolean expectedRootTarget = false;
         XMLStreamReader reader = secureXmlFactory().createXMLStreamReader(new ByteArrayInputStream(xml));
         try {
             while (reader.hasNext()) {
                 if (reader.next() != XMLStreamConstants.START_ELEMENT
                         || !reader.getLocalName().equalsIgnoreCase("Relationship")) continue;
-                String relationshipType = null;
-                for (int index = 0; index < reader.getAttributeCount(); index++) {
-                    if (reader.getAttributeLocalName(index).equalsIgnoreCase("TargetMode")
-                            && reader.getAttributeValue(index).equalsIgnoreCase("External")) {
-                        throw invalid("Externe OOXML-Beziehungen sind nicht erlaubt.");
-                    }
-                    if (reader.getAttributeLocalName(index).equalsIgnoreCase("Type")) {
-                        relationshipType = reader.getAttributeValue(index).toLowerCase(Locale.ROOT);
-                    }
+                String targetMode = normalizedAttribute(reader, "TargetMode");
+                if ("external".equals(targetMode)) {
+                    throw invalid("Externe OOXML-Beziehungen sind nicht erlaubt.");
+                }
+                if (targetMode != null && !"internal".equals(targetMode)) {
+                    throw invalid("Das Office-Dokument enthält einen ungültigen Beziehungsmodus.");
+                }
+
+                String relationshipType = normalizedAttribute(reader, "Type");
+                if (isMacroType(relationshipType)) {
+                    throw invalid("Office-Dokumente mit Makros sind nicht erlaubt.");
                 }
                 if (relationshipType != null && (relationshipType.endsWith("/oleobject")
                         || relationshipType.endsWith("/package")
                         || relationshipType.endsWith("/activexcontrol"))) {
                     throw invalid("Eingebettete OLE- oder ActiveX-Inhalte sind nicht erlaubt.");
                 }
+
+                if (!rootRelationships || !OFFICE_DOCUMENT_RELATIONSHIP_TYPES.contains(relationshipType)) {
+                    continue;
+                }
+                officeDocumentRelationships++;
+                boolean internal = targetMode == null || targetMode.equals("internal");
+                String target = attribute(reader, "Target");
+                if (internal && isExpectedRootTarget(target, kind)) {
+                    expectedRootTarget = true;
+                }
             }
+        } finally {
+            reader.close();
+        }
+
+        if (!rootRelationships) {
+            return false;
+        }
+        if (officeDocumentRelationships != 1 || !expectedRootTarget) {
+            throw invalid("Das Office-Dokument besitzt keine eindeutige interne Root-Beziehung "
+                    + "zum erwarteten Hauptdokument.");
+        }
+        return true;
+    }
+
+    private boolean inspectContentTypes(byte[] xml, Kind kind) throws XMLStreamException {
+        boolean expectedMainContentType = false;
+        XMLStreamReader reader = secureXmlFactory().createXMLStreamReader(new ByteArrayInputStream(xml));
+        try {
+            while (reader.hasNext()) {
+                if (reader.next() != XMLStreamConstants.START_ELEMENT) continue;
+                boolean override = reader.getLocalName().equalsIgnoreCase("Override");
+                boolean defaultType = reader.getLocalName().equalsIgnoreCase("Default");
+                if (!override && !defaultType) continue;
+
+                String partName = attribute(reader, "PartName");
+                String contentType = attribute(reader, "ContentType");
+                if (isMacroType(contentType)) {
+                    throw invalid("Office-Dokumente mit Makros sind nicht erlaubt.");
+                }
+                if (override && partName != null && contentType != null
+                        && partName.replaceFirst("^/", "").equalsIgnoreCase(kind.mainPart)
+                        && contentType.equalsIgnoreCase(kind.mainContentType)) {
+                    expectedMainContentType = true;
+                }
+            }
+            return expectedMainContentType;
         } finally {
             reader.close();
         }
     }
 
-    private boolean hasExpectedMainContentType(byte[] xml, Kind kind) throws XMLStreamException {
-        XMLStreamReader reader = secureXmlFactory().createXMLStreamReader(new ByteArrayInputStream(xml));
-        try {
-            while (reader.hasNext()) {
-                if (reader.next() != XMLStreamConstants.START_ELEMENT
-                        || !reader.getLocalName().equalsIgnoreCase("Override")) continue;
-                String partName = attribute(reader, "PartName");
-                String contentType = attribute(reader, "ContentType");
-                if (partName != null && contentType != null
-                        && partName.replaceFirst("^/", "").equalsIgnoreCase(kind.mainPart)
-                        && contentType.equalsIgnoreCase(kind.mainContentType)) {
-                    return true;
-                }
-            }
+    private boolean isMacroType(String value) {
+        if (value == null) return false;
+        String normalized = value.toLowerCase(Locale.ROOT);
+        return normalized.contains("macro") || normalized.contains("vba");
+    }
+
+    private boolean isExpectedRootTarget(String target, Kind kind) {
+        if (target == null || target.isBlank() || target.indexOf('\\') >= 0
+                || target.indexOf('?') >= 0 || target.indexOf('#') >= 0) {
             return false;
-        } finally {
-            reader.close();
         }
+        String normalized = target.startsWith("/") ? target.substring(1) : target;
+        return normalized.equals(kind.mainPart);
+    }
+
+    private String normalizedAttribute(XMLStreamReader reader, String name) {
+        String value = attribute(reader, name);
+        return value == null ? null : value.strip().toLowerCase(Locale.ROOT);
     }
 
     private String attribute(XMLStreamReader reader, String name) {

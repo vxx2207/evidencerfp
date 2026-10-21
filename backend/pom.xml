@@ -13,7 +13,7 @@
 
     <groupId>com.certaaccess</groupId>
     <artifactId>evidence-rfp-backend</artifactId>
-    <version>0.2.0</version>
+    <version>0.2.1</version>
     <name>EvidenceRFP Backend</name>
     <description>Belegbare Security-Fragebogenanalyse mit deterministischen IAM-Kontrollen</description>
 
@@ -226,6 +226,84 @@
                                 <goals><goal>add-test-source</goal></goals>
                                 <configuration>
                                     <sources><source>src/ai-test/java</source></sources>
+                                </configuration>
+                            </execution>
+                        </executions>
+                    </plugin>
+                </plugins>
+            </build>
+        </profile>
+        <profile>
+            <id>ollama-eval</id>
+            <dependencyManagement>
+                <dependencies>
+                    <dependency>
+                        <groupId>org.springframework.ai</groupId>
+                        <artifactId>spring-ai-bom</artifactId>
+                        <version>${spring-ai.version}</version>
+                        <type>pom</type>
+                        <scope>import</scope>
+                    </dependency>
+                </dependencies>
+            </dependencyManagement>
+            <dependencies>
+                <dependency>
+                    <groupId>org.springframework.ai</groupId>
+                    <artifactId>spring-ai-starter-model-ollama</artifactId>
+                </dependency>
+            </dependencies>
+            <build>
+                <directory>${project.basedir}/target/ollama-eval-build</directory>
+                <plugins>
+                    <plugin>
+                        <groupId>org.codehaus.mojo</groupId>
+                        <artifactId>build-helper-maven-plugin</artifactId>
+                        <version>3.6.1</version>
+                        <executions>
+                            <execution>
+                                <id>add-ollama-eval-source</id>
+                                <phase>generate-sources</phase>
+                                <goals><goal>add-source</goal></goals>
+                                <configuration>
+                                    <sources><source>src/ollama/java</source></sources>
+                                </configuration>
+                            </execution>
+                            <execution>
+                                <id>add-ollama-eval-test-source</id>
+                                <phase>generate-test-sources</phase>
+                                <goals><goal>add-test-source</goal></goals>
+                                <configuration>
+                                    <sources><source>src/ollama-eval-test/java</source></sources>
+                                </configuration>
+                            </execution>
+                        </executions>
+                    </plugin>
+                    <plugin>
+                        <groupId>org.apache.maven.plugins</groupId>
+                        <artifactId>maven-surefire-plugin</artifactId>
+                        <configuration>
+                            <skipTests>true</skipTests>
+                        </configuration>
+                    </plugin>
+                    <plugin>
+                        <groupId>org.apache.maven.plugins</groupId>
+                        <artifactId>maven-failsafe-plugin</artifactId>
+                        <executions>
+                            <execution>
+                                <!-- Spring Boot parent already declares the Failsafe execution as
+                                     "default". Reuse that id so the live model is never run twice. -->
+                                <id>default</id>
+                                <goals>
+                                    <goal>integration-test</goal>
+                                    <goal>verify</goal>
+                                </goals>
+                                <configuration>
+                                    <includes>
+                                        <include>**/OllamaGoldenSetEvaluationIT.java</include>
+                                    </includes>
+                                    <systemPropertyVariables>
+                                        <evidencerfp.eval.outputDirectory>target/evaluation/ollama</evidencerfp.eval.outputDirectory>
+                                    </systemPropertyVariables>
                                 </configuration>
                             </execution>
                         </executions>

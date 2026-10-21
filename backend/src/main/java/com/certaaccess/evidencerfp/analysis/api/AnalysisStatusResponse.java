@@ -6,22 +6,36 @@ import com.certaaccess.evidencerfp.analysis.domain.AnalysisJobStatus;
 import com.certaaccess.evidencerfp.analysis.domain.AnalysisPhase;
 import com.certaaccess.evidencerfp.analysis.domain.AnalysisStatus;
 import com.certaaccess.evidencerfp.analysis.domain.ReviewStatus;
+import com.certaaccess.evidencerfp.analysis.application.AnalysisStatusSnapshot;
+import io.swagger.v3.oas.annotations.media.Schema;
+import jakarta.validation.constraints.Max;
+import jakarta.validation.constraints.Min;
 
 import java.time.Instant;
 import java.util.UUID;
 
 public record AnalysisStatusResponse(
+        @Schema(requiredMode = Schema.RequiredMode.REQUIRED)
         UUID id,
+        @Schema(requiredMode = Schema.RequiredMode.REQUIRED)
         AnalysisStatus status,
+        @Schema(requiredMode = Schema.RequiredMode.REQUIRED)
+        @Min(0) @Max(100)
         int progressPercent,
-        String phase,
+        @Schema(requiredMode = Schema.RequiredMode.REQUIRED)
+        AnalysisPhase phase,
+        @Schema(requiredMode = Schema.RequiredMode.REQUIRED)
+        @Min(0) @Max(2)
         int attempt,
         Instant updatedAt,
         Instant heartbeatAt,
         String failureCode,
+        @Schema(requiredMode = Schema.RequiredMode.REQUIRED)
         Instant createdAt,
         Instant completedAt,
+        @Schema(requiredMode = Schema.RequiredMode.REQUIRED)
         int totalQuestions,
+        @Schema(requiredMode = Schema.RequiredMode.REQUIRED)
         int reviewedQuestions
 ) {
     public static AnalysisStatusResponse from(Analysis analysis) {
@@ -45,7 +59,12 @@ public record AnalysisStatusResponse(
         int reviewed = (int) analysis.questions().stream()
                 .filter(question -> question.reviewStatus() != ReviewStatus.DRAFT).count();
         return new AnalysisStatusResponse(analysis.id(), analysis.status(), job.progressPercent(),
-                job.phase().name(), job.attempt(), job.updatedAt(), job.heartbeatAt(), job.failureCode(),
+                job.phase(), job.attempt(), job.updatedAt(), job.heartbeatAt(), job.failureCode(),
                 analysis.createdAt(), analysis.completedAt(), analysis.questions().size(), reviewed);
+    }
+
+    public static AnalysisStatusResponse from(AnalysisStatusSnapshot snapshot) {
+        return snapshot.job().map(job -> from(snapshot.analysis(), job))
+                .orElseGet(() -> from(snapshot.analysis()));
     }
 }

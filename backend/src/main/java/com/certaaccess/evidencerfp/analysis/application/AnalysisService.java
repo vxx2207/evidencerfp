@@ -4,6 +4,7 @@ import com.certaaccess.evidencerfp.analysis.domain.Analysis;
 import com.certaaccess.evidencerfp.analysis.domain.AnalysisJob;
 import com.certaaccess.evidencerfp.analysis.domain.AnalysisJobStatus;
 import com.certaaccess.evidencerfp.analysis.domain.AnalysisPhase;
+import com.certaaccess.evidencerfp.analysis.domain.AnalysisRunMetadata;
 import com.certaaccess.evidencerfp.analysis.domain.AnalysisStatus;
 import com.certaaccess.evidencerfp.analysis.domain.AnalysisUpload;
 import com.certaaccess.evidencerfp.analysis.domain.AnalysisUploadKind;
@@ -55,8 +56,12 @@ import java.util.concurrent.atomic.AtomicBoolean;
 
 @Service
 public class AnalysisService {
+    private static final int MAX_JOB_ATTEMPTS = 2;
     private static final Logger LOGGER = LoggerFactory.getLogger(AnalysisService.class);
     private static final String GENERIC_FAILURE_CODE = "ANALYSIS_PROCESSING_FAILED";
+    private static final String CLEANUP_FAILURE_CODE = "UPLOAD_CLEANUP_FAILED";
+    private static final Duration CLEANUP_RETRY_DELAY = Duration.ofSeconds(30);
+    private static final Duration ORPHAN_GRACE_PERIOD = Duration.ofHours(1);
 
     private final AnalysisRepository repository;
     private final UploadValidator uploadValidator;
@@ -74,6 +79,7 @@ public class AnalysisService {
     private final Duration heartbeatInterval;
     private final int maxAttempts;
     private final int recoveryBatchSize;
+    private final AnalysisRunMetadata runMetadata;
     private final String workerInstanceId = UUID.randomUUID().toString();
 
     AnalysisService(AnalysisRepository repository, UploadValidator uploadValidator, RfpParser rfpParser,
@@ -82,7 +88,8 @@ public class AnalysisService {
                     ObjectMapper objectMapper, Clock clock) {
         this(repository, uploadValidator, rfpParser, evidenceExtractor, evidenceRetriever,
                 answerGenerator, iamControlEvaluator, objectMapper, clock, Runnable::run, null,
-                testUploadStorage(), Duration.ofSeconds(30), Duration.ofSeconds(10), 2, 8);
+                testUploadStorage(), Duration.ofSeconds(30), Duration.ofSeconds(10), 2, 8,
+                defaultRunMetadata(evidenceRetriever));
     }
 
     public AnalysisService(AnalysisRepository repository, UploadValidator uploadValidator, RfpParser rfpParser,
@@ -91,7 +98,8 @@ public class AnalysisService {
                            ObjectMapper objectMapper, Clock clock, TaskExecutor taskExecutor) {
         this(repository, uploadValidator, rfpParser, evidenceExtractor, evidenceRetriever,
                 answerGenerator, iamControlEvaluator, objectMapper, clock, taskExecutor, null,
-                testUploadStorage(), Duration.ofSeconds(30), Duration.ofSeconds(10), 2, 8);
+                testUploadStorage(), Duration.ofSeconds(30), Duration.ofSeconds(10), 2, 8,
+                defaultRunMetadata(evidenceRetriever));
     }
 
     @Autowired
@@ -105,12 +113,29 @@ public class AnalysisService {
                            @Value("${evidence-rfp.analysis.lease-seconds:30}") long leaseSeconds,
                            @Value("${evidence-rfp.analysis.heartbeat-seconds:10}") long heartbeatSeconds,
                            @Value("${evidence-rfp.analysis.max-attempts:2}") int maxAttempts,
-                           @Value("${evidence-rfp.analysis.recovery-batch-size:8}") int recoveryBatchSize) {
+                           @Value("${evidence-rfp.analysis.recovery-batch-size:8}") int recoveryBatchSize,
+                           @Value("${evidence-rfp.ai.chat-model:deterministic-answer-v2}") String chatModel,
+                           @Value("${evidence-rfp.ai.embedding-model:none}") String embeddingModel) {
         this(repository, uploadValidator, rfpParser, evidenceExtractor, evidenceRetriever,
                 answerGenerator, iamControlEvaluator, objectMapper, clock, taskExecutor,
                 heartbeatScheduler, uploadStorage, Duration.ofSeconds(Math.max(5, leaseSeconds)),
-                Duration.ofSeconds(Math.max(1, heartbeatSeconds)), Math.max(1, maxAttempts),
-                Math.max(1, recoveryBatchSize));
+                Duration.ofSeconds(Math.max(1, heartbeatSeconds)), cappedJobAttempts(maxAttempts),
+                Math.max(1, recoveryBatchSize), new AnalysisRunMetadata(
+                        evidenceRetriever.version(), AnalysisRunMetadata.PROMPT_VERSION,
+                        embeddingModel, chatModel));
+    }
+
+    AnalysisService(AnalysisRepository repository, UploadValidator uploadValidator, RfpParser rfpParser,
+                    EvidenceExtractor evidenceExtractor, EvidenceRetriever evidenceRetriever,
+                    AnswerGenerator answerGenerator, IamControlEvaluator iamControlEvaluator,
+                    ObjectMapper objectMapper, Clock clock, TaskExecutor taskExecutor,
+                    TaskScheduler heartbeatScheduler, AnalysisUploadStorage uploadStorage,
+                    long leaseSeconds, long heartbeatSeconds, int maxAttempts, int recoveryBatchSize) {
+        this(repository, uploadValidator, rfpParser, evidenceExtractor, evidenceRetriever,
+                answerGenerator, iamControlEvaluator, objectMapper, clock, taskExecutor,
+                heartbeatScheduler, uploadStorage, Duration.ofSeconds(Math.max(5, leaseSeconds)),
+                Duration.ofSeconds(Math.max(1, heartbeatSeconds)), cappedJobAttempts(maxAttempts),
+                Math.max(1, recoveryBatchSize), defaultRunMetadata(evidenceRetriever));
     }
 
     private AnalysisService(AnalysisRepository repository, UploadValidator uploadValidator,
@@ -119,7 +144,8 @@ public class AnalysisService {
                             IamControlEvaluator iamControlEvaluator, ObjectMapper objectMapper,
                             Clock clock, TaskExecutor taskExecutor, TaskScheduler heartbeatScheduler,
                             AnalysisUploadStorage uploadStorage, Duration leaseDuration,
-                            Duration heartbeatInterval, int maxAttempts, int recoveryBatchSize) {
+                            Duration heartbeatInterval, int maxAttempts, int recoveryBatchSize,
+                            AnalysisRunMetadata runMetadata) {
         this.repository = repository;
         this.uploadValidator = uploadValidator;
         this.rfpParser = rfpParser;
@@ -136,6 +162,7 @@ public class AnalysisService {
         this.heartbeatInterval = heartbeatInterval;
         this.maxAttempts = maxAttempts;
         this.recoveryBatchSize = recoveryBatchSize;
+        this.runMetadata = runMetadata;
     }
 
     public Analysis create(String customerName, MultipartFile rfp, List<MultipartFile> evidence,
@@ -152,7 +179,7 @@ public class AnalysisService {
         List<AnalysisUpload> uploads = uploadStorage.store(analysisId, rfp, evidence, iamSnapshotFile);
         Instant createdAt = clock.instant();
         Analysis accepted = new Analysis(analysisId, normalizedCustomerName, false,
-                AnalysisStatus.PROCESSING, createdAt, null, List.of(), List.of(), List.of());
+                AnalysisStatus.PROCESSING, createdAt, null, List.of(), List.of(), List.of(), runMetadata);
         AnalysisJob job = AnalysisJob.queued(analysisId, createdAt, maxAttempts);
         try {
             AnalysisSubmission submission = repository.enqueue(accepted, job, uploads, normalizedKey,
@@ -172,11 +199,11 @@ public class AnalysisService {
     @Scheduled(fixedDelayString = "${evidence-rfp.analysis.recovery-interval-ms:5000}",
             initialDelayString = "${evidence-rfp.analysis.recovery-initial-delay-ms:1000}")
     public void recoverRunnableJobs() {
-        for (UUID id : repository.failExhaustedJobs(clock.instant())) {
-            safeDeleteUploads(id);
-            repository.deleteUploadMetadata(id);
-        }
-        for (UUID id : repository.findRunnableJobIds(clock.instant(), recoveryBatchSize)) dispatch(id);
+        Instant now = clock.instant();
+        repository.failExhaustedJobs(now);
+        processCleanupTasks(now);
+        sweepOrphanedUploadDirectories(now);
+        for (UUID id : repository.findRunnableJobIds(now, recoveryBatchSize)) dispatch(id);
     }
 
     private void dispatch(UUID analysisId) {
@@ -230,8 +257,7 @@ public class AnalysisService {
         } finally {
             if (heartbeat != null) heartbeat.cancel(false);
             if (terminalTransition || analysisDeleted) {
-                safeDeleteUploads(analysisId);
-                repository.deleteUploadMetadata(analysisId);
+                processCleanupTasks(clock.instant());
             }
         }
     }
@@ -271,7 +297,7 @@ public class AnalysisService {
         Instant completedAt = clock.instant();
         return new Analysis(accepted.id(), accepted.customerName(), accepted.synthetic(),
                 AnalysisStatus.COMPLETED, accepted.createdAt(), completedAt, questions, findings,
-                extracted.stream().map(this::documentWithPassages).toList());
+                extracted.stream().map(this::documentWithPassages).toList(), accepted.runMetadata());
     }
 
     private void advance(UUID analysisId, String leaseOwner, AnalysisPhase phase, int progress,
@@ -314,6 +340,11 @@ public class AnalysisService {
         return repository.findJobByAnalysisId(id).orElseGet(() -> syntheticJobFor(analysis));
     }
 
+    public AnalysisStatusSnapshot getStatusSnapshot(UUID id) {
+        return repository.findStatusSnapshotById(id)
+                .orElseThrow(() -> new AnalysisNotFoundException(id));
+    }
+
     public QuestionResult updateQuestion(UUID analysisId, String questionId, long expectedRevision,
                                          String answer, ReviewStatus reviewStatus) {
         QuestionResult updated = repository.updateQuestion(analysisId, questionId, expectedRevision,
@@ -334,8 +365,9 @@ public class AnalysisService {
     }
 
     public void delete(UUID id) {
-        if (!repository.deleteById(id)) throw new AnalysisNotFoundException(id);
-        safeDeleteUploads(id);
+        Instant now = clock.instant();
+        if (!repository.deleteById(id, now)) throw new AnalysisNotFoundException(id);
+        processCleanupTasks(now);
     }
 
     private IamSnapshot parseIamSnapshot(MultipartFile file) {
@@ -424,6 +456,67 @@ public class AnalysisService {
         }
     }
 
+    private void processCleanupTasks(Instant now) {
+        String cleanupOwner = workerInstanceId + ":cleanup:" + UUID.randomUUID();
+        List<UUID> claimed;
+        try {
+            claimed = repository.claimCleanupTasks(cleanupOwner, now, now.plus(leaseDuration),
+                    recoveryBatchSize);
+        } catch (RuntimeException exception) {
+            LOGGER.warn("Persistente Upload-Bereinigung konnte nicht geclaimt werden", exception);
+            return;
+        }
+        for (UUID analysisId : claimed) {
+            try {
+                uploadStorage.delete(analysisId);
+                if (!repository.completeCleanup(analysisId, cleanupOwner, clock.instant())) {
+                    LOGGER.info("Cleanup-Lease für Analyse {} wurde vor Abschluss übernommen",
+                            analysisId);
+                }
+            } catch (RuntimeException exception) {
+                Instant failedAt = clock.instant();
+                try {
+                    repository.retryCleanup(analysisId, cleanupOwner, failedAt,
+                            failedAt.plus(CLEANUP_RETRY_DELAY), CLEANUP_FAILURE_CODE);
+                } catch (RuntimeException persistenceFailure) {
+                    exception.addSuppressed(persistenceFailure);
+                }
+                LOGGER.atWarn().addKeyValue("analysisId", analysisId)
+                        .addKeyValue("phase", "CLEANUP")
+                        .addKeyValue("failureCode", CLEANUP_FAILURE_CODE)
+                        .log("Persistente Upload-Bereinigung wird wiederholt", exception);
+            }
+        }
+    }
+
+    private void sweepOrphanedUploadDirectories(Instant now) {
+        try (var candidates = uploadStorage.streamStaleAnalysisDirectories(
+                now.minus(ORPHAN_GRACE_PERIOD))) {
+            var iterator = candidates.iterator();
+            int removed = 0;
+            while (iterator.hasNext() && removed < recoveryBatchSize) {
+                UUID analysisId = iterator.next();
+                try {
+                    if (!repository.isUploadStorageTracked(analysisId)) {
+                        uploadStorage.delete(analysisId);
+                        removed++;
+                        LOGGER.atInfo().addKeyValue("analysisId", analysisId)
+                                .addKeyValue("phase", "ORPHAN_CLEANUP")
+                                .log("Verwaistes Upload-Verzeichnis entfernt");
+                    }
+                } catch (RuntimeException exception) {
+                    LOGGER.atWarn().addKeyValue("analysisId", analysisId)
+                            .addKeyValue("phase", "ORPHAN_CLEANUP")
+                            .log("Verwaistes Upload-Verzeichnis bleibt für den nächsten Lauf erhalten",
+                                    exception);
+                }
+            }
+        } catch (RuntimeException exception) {
+            LOGGER.warn("Lokaler Analysespeicher konnte nicht auf verwaiste Uploads geprüft werden",
+                    exception);
+        }
+    }
+
     private boolean analysisMissing(UUID analysisId) {
         try {
             return repository.findById(analysisId).isEmpty();
@@ -436,5 +529,19 @@ public class AnalysisService {
     private static AnalysisUploadStorage testUploadStorage() {
         return new AnalysisUploadStorage(Path.of(System.getProperty("java.io.tmpdir"),
                 "evidence-rfp-tests", UUID.randomUUID().toString()).toString());
+    }
+
+    private static AnalysisRunMetadata defaultRunMetadata(EvidenceRetriever evidenceRetriever) {
+        String retrievalVersion = evidenceRetriever.version();
+        if (retrievalVersion == null || retrievalVersion.isBlank()) {
+            retrievalVersion = EvidenceRetriever.DEFAULT_VERSION;
+        }
+        return new AnalysisRunMetadata(retrievalVersion, AnalysisRunMetadata.PROMPT_VERSION,
+                AnalysisRunMetadata.DETERMINISTIC_EMBEDDING_MODEL,
+                AnalysisRunMetadata.DETERMINISTIC_CHAT_MODEL);
+    }
+
+    private static int cappedJobAttempts(int configuredAttempts) {
+        return Math.min(MAX_JOB_ATTEMPTS, Math.max(1, configuredAttempts));
     }
 }

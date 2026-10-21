@@ -12,18 +12,20 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
 import java.nio.file.Files;
+import java.nio.file.LinkOption;
 import java.nio.file.Path;
 import java.nio.file.attribute.PosixFilePermission;
 import java.security.DigestInputStream;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.EnumSet;
 import java.util.HexFormat;
 import java.util.List;
-import java.util.Locale;
 import java.util.UUID;
+import java.util.stream.Stream;
 
 /**
  * Speichert validierte Request-Uploads außerhalb des Servlet-Lebenszyklus. In der Datenbank
@@ -72,13 +74,13 @@ public class AnalysisUploadStorage {
             case EVIDENCE -> "evidence";
             case IAM_SNAPSHOT -> "iamSnapshot";
         };
-        return new PathMultipartFile(partName, upload.originalFilename(), upload.mediaType(), path,
-                upload.sizeBytes());
+        return new PathMultipartFile(partName, upload.originalFilename(), upload.mediaType(), root,
+                path, upload.sizeBytes());
     }
 
     public void delete(UUID analysisId) {
         Path directory = analysisDirectory(analysisId);
-        if (!Files.exists(directory)) return;
+        if (!Files.exists(directory, LinkOption.NOFOLLOW_LINKS)) return;
         try (var paths = Files.walk(directory)) {
             paths.sorted(Comparator.reverseOrder()).forEach(path -> {
                 try {
@@ -89,6 +91,37 @@ public class AnalysisUploadStorage {
             });
         } catch (IOException | StorageCleanupException exception) {
             throw new IllegalStateException("Temporäre Analysedateien konnten nicht entfernt werden.", exception);
+        }
+    }
+
+    /**
+     * Liefert ausschließlich UUID-Verzeichnisse, deren letzter Verzeichnis-Write vor dem
+     * Grenzwert liegt. Ob sie wirklich verwaist sind, entscheidet der Service anschließend
+     * gegen den persistenten Analyse-/Cleanup-Stand. Symlinks werden dabei nicht verfolgt.
+     */
+    public List<UUID> findStaleAnalysisDirectories(Instant olderThan, int maxResults) {
+        if (maxResults < 1) return List.of();
+        try (Stream<UUID> candidates = streamStaleAnalysisDirectories(olderThan)) {
+            return candidates
+                    .limit(maxResults)
+                    .toList();
+        }
+    }
+
+    /**
+     * Lazy Verzeichnisansicht für den Recovery-Sweep. Der Aufrufer muss den Stream schließen;
+     * dadurch werden auch sehr große Spool-Verzeichnisse nicht vollständig materialisiert.
+     */
+    public Stream<UUID> streamStaleAnalysisDirectories(Instant olderThan) {
+        try {
+            return Files.list(root)
+                    .filter(path -> Files.isDirectory(path, LinkOption.NOFOLLOW_LINKS))
+                    .map(this::directoryCandidate)
+                    .flatMap(java.util.Optional::stream)
+                    .filter(candidate -> !candidate.modifiedAt().isAfter(olderThan))
+                    .map(DirectoryCandidate::analysisId);
+        } catch (IOException exception) {
+            throw new IllegalStateException("Lokaler Analysespeicher konnte nicht geprüft werden.", exception);
         }
     }
 
@@ -151,6 +184,16 @@ public class AnalysisUploadStorage {
         return path;
     }
 
+    private java.util.Optional<DirectoryCandidate> directoryCandidate(Path path) {
+        try {
+            UUID analysisId = UUID.fromString(path.getFileName().toString());
+            Instant modifiedAt = Files.getLastModifiedTime(path, LinkOption.NOFOLLOW_LINKS).toInstant();
+            return java.util.Optional.of(new DirectoryCandidate(analysisId, modifiedAt));
+        } catch (IllegalArgumentException | IOException ignored) {
+            return java.util.Optional.empty();
+        }
+    }
+
     private Path resolve(String relative) {
         Path path = root.resolve(relative).normalize();
         if (!path.startsWith(root) || path.equals(root)) throw new IllegalStateException("Ungültiger Speicherpfad.");
@@ -205,8 +248,31 @@ public class AnalysisUploadStorage {
         private StorageCleanupException(IOException cause) { super(cause); }
     }
 
-    private record PathMultipartFile(String name, String originalFilename, String contentType,
-                                     Path path, long size) implements MultipartFile {
+    private record DirectoryCandidate(UUID analysisId, Instant modifiedAt) { }
+
+    /**
+     * Dateibasierter Multipart-Adapter für validierte, serverseitig gespeicherte Uploads.
+     * Nur der umschließende Speicher kann Instanzen erzeugen; ein Request kann daher keinen
+     * beliebigen lokalen Pfad als Parserquelle einschleusen.
+     */
+    public static final class PathMultipartFile implements MultipartFile {
+        private final String name;
+        private final String originalFilename;
+        private final String contentType;
+        private final Path root;
+        private final Path path;
+        private final long size;
+
+        private PathMultipartFile(String name, String originalFilename, String contentType,
+                                  Path root, Path path, long size) {
+            this.name = name;
+            this.originalFilename = originalFilename;
+            this.contentType = contentType;
+            this.root = root;
+            this.path = path;
+            this.size = size;
+        }
+
         @Override public String getName() { return name; }
         @Override public String getOriginalFilename() { return originalFilename; }
         @Override public String getContentType() { return contentType; }
@@ -216,6 +282,26 @@ public class AnalysisUploadStorage {
         @Override public InputStream getInputStream() throws IOException { return Files.newInputStream(path); }
         @Override public void transferTo(File destination) throws IOException {
             Files.copy(path, destination.toPath(), java.nio.file.StandardCopyOption.REPLACE_EXISTING);
+        }
+
+        /**
+         * Liefert ausschließlich die bereits gespeicherte Datei innerhalb des konfigurierten
+         * Storage-Roots. Der Realpfad-Abgleich verhindert Traversal und Symlink-Ausbrüche.
+         */
+        public Path trustedReadPath() throws IOException {
+            Path normalizedRoot = root.toAbsolutePath().normalize();
+            Path normalizedPath = path.toAbsolutePath().normalize();
+            if (normalizedPath.equals(normalizedRoot) || !normalizedPath.startsWith(normalizedRoot)
+                    || Files.isSymbolicLink(normalizedPath)
+                    || !Files.isRegularFile(normalizedPath, LinkOption.NOFOLLOW_LINKS)) {
+                throw new IOException("Persistierter Uploadpfad ist nicht vertrauenswürdig.");
+            }
+            Path realRoot = normalizedRoot.toRealPath();
+            Path realPath = normalizedPath.toRealPath();
+            if (realPath.equals(realRoot) || !realPath.startsWith(realRoot)) {
+                throw new IOException("Persistierter Uploadpfad verlässt das Speicherverzeichnis.");
+            }
+            return realPath;
         }
     }
 }

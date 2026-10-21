@@ -1,21 +1,23 @@
 # EvidenceRFP
 
-![Release](https://img.shields.io/badge/release-v0.2.0-0f766e)
-![CI](https://img.shields.io/badge/CI-GitHub_Actions_ready-2088ff)
-![GitHub Pages](https://img.shields.io/badge/demo-GitHub_Pages_ready-222222)
-![License](https://img.shields.io/badge/license-MIT-2f855a)
+[![Release](https://img.shields.io/github/v/release/vxx2207/evidencerfp?display_name=tag&sort=semver)](https://github.com/vxx2207/evidencerfp/releases/latest)
+[![CI](https://github.com/vxx2207/evidencerfp/actions/workflows/ci.yml/badge.svg)](https://github.com/vxx2207/evidencerfp/actions/workflows/ci.yml)
+[![Live-Demo](https://img.shields.io/badge/Live--Demo-GitHub%20Pages-0f766e)](https://vxx2207.github.io/evidencerfp/)
+[![License](https://img.shields.io/github/license/vxx2207/evidencerfp)](LICENSE)
 
-![EvidenceRFP – Belegbare Security-Antworten](docs/assets/social-preview.png)
+![EvidenceRFP – Belegbare Security-Antworten](docs/assets/social-preview.jpg)
 
 > **Portfolio-Demo · vollständig synthetische Daten**
 >
 > EvidenceRFP ist kein Produkt der fiktiven Unternehmen CertaAccess oder Nordstern Bank. Die öffentliche Demo verarbeitet keine Uploads und keine echten Kundendaten.
 
+**Velat Isik – Wirtschaftsinformatik, Ziel Technical Sales / Presales**
+
 **Vom Security-Fragebogen zur belegbaren Antwort – inklusive IAM-Kontrollnachweisen.**
 
 EvidenceRFP unterstützt Technical-Sales-Teams dabei, wiederkehrende Security-Fragebögen schneller und belastbarer zu beantworten. Die Anwendung findet passende Aussagen in freigegebenen Produktunterlagen, zeigt die exakte Fundstelle, markiert Widersprüche und ergänzt dokumentbasierte Antworten um deterministische Identity-Security-Prüfungen.
 
-> **Schnelleinstieg:** Die Anwendung besitzt eine geführte **60-Sekunden-Demo**. Lokal starten, auf „60-Sekunden-Demo starten“ klicken und nacheinander verifizierte Quelle, Quellenkonflikt, bewusstes Nichtwissen, IAM-Finding und Evidence Pack erleben. Der GitHub-Pages-Workflow ist vorbereitet; der öffentliche Link wird nach dem ersten Push des noch nicht verbundenen Repositories ergänzt.
+> **Schnelleinstieg:** Die [öffentliche GitHub-Pages-Demo](https://vxx2207.github.io/evidencerfp/) öffnen, auf **„60-Sekunden-Demo starten“** klicken und nacheinander verifizierte Quelle, Quellenkonflikt, bewusstes Nichtwissen, IAM-Finding und Evidence Pack erleben.
 
 | 80 Golden-Set-Fälle | 100 % Recall@6 | 100 % technisch validierte Zitationen | 3 deterministische IAM-Regeln |
 |---:|---:|---:|---:|
@@ -77,6 +79,7 @@ Der vollständige Moderationstext steht im [Demo Talk Track](docs/DEMO_TALK_TRAC
 - echtes XLSX Evidence Pack auch in der statischen Browser-Demo
 - Geführter lokaler Importdialog für XLSX, mehrere PDF/DOCX-Dateien und einen optionalen IAM-Snapshot
 - neustartfeste PostgreSQL-Jobs mit Lease, Heartbeat, maximal zwei Versuchen und atomarer Finalisierung
+- restart-sichere Upload-Bereinigung über transaktionalen Cleanup-Outbox, eigene Lease und Orphan-Sweeper
 - optimistische Review-Sperre über `If-Match`, Fragenrevision und transaktionales Audit-Ereignis
 - Hybrid Retrieval aus pgvector und deutscher PostgreSQL-Volltextsuche mit Reciprocal Rank Fusion
 - persistierte Retrieval-Provenienz und einzelne, serverseitig verifizierte Claims
@@ -90,7 +93,10 @@ flowchart LR
     UI -->|DemoAnalysisGateway| FIX[Vorberechnete Fixtures]
     UI -->|ApiAnalysisGateway| API[Spring Boot API]
     API --> IMP[Import & gehärtete Validierung]
+    API --> STORE[geschützter Upload-Speicher]
     API --> JOB[(Persistente Jobs + Leases)]
+    JOB --> CLEAN[(Cleanup-Outbox + Lease)]
+    CLEAN --> STORE
     JOB --> ORCH[Worker + Recovery]
     IMP --> DOC[PDF / DOCX / XLSX Parser]
     DOC --> RET[450/60 Token Chunking]
@@ -217,7 +223,7 @@ In diesem Modus verlassen Dokumentpassagen die lokale Umgebung. Für reale Kunde
 | `GET` | `/api/v1/analyses/{id}/export.xlsx` | Geprüftes Evidence Pack exportieren |
 | `DELETE` | `/api/v1/analyses/{id}` | Analyse und zugehörige lokale Daten löschen |
 
-Der Import ist als persistenter lokaler Hintergrundjob umgesetzt: `POST /analyses` validiert und speichert die Dateien unter servergenerierten Namen, liefert sofort eine Analyse-ID mit `PROCESSING`, und das Frontend fragt anschließend Phase und echten Fortschritt bis `COMPLETED` oder `FAILED` ab. Worker claimen Jobs atomar, erneuern eine 30-Sekunden-Lease alle zehn Sekunden und übernehmen abgebrochene Läufe höchstens einmal neu. Ergebnis, Review und Export sind vor `COMPLETED` mit `409 ANALYSIS_NOT_READY` gesperrt. Der vollständige Vertrag liegt als [OpenAPI 3.1](docs/openapi/evidence-rfp-v1.yaml) vor.
+Der Import ist als persistenter lokaler Hintergrundjob umgesetzt: `POST /analyses` validiert und speichert die Dateien unter servergenerierten Namen, liefert sofort eine Analyse-ID mit `PROCESSING`, und das Frontend fragt anschließend Phase und echten Fortschritt bis `COMPLETED` oder `FAILED` ab. Worker claimen Jobs atomar, erneuern eine 30-Sekunden-Lease alle zehn Sekunden und übernehmen abgebrochene Läufe höchstens einmal neu. Terminale Übergänge registrieren in derselben Transaktion einen geleasten Cleanup-Auftrag; dadurch werden auch nach einem Prozessabbruch verbliebene Rohdateien erneut bereinigt. Ergebnis, Review und Export sind vor `COMPLETED` mit `409 ANALYSIS_NOT_READY` gesperrt. Der vollständige Vertrag liegt als [OpenAPI 3.1](docs/openapi/evidence-rfp-v1.yaml) vor. Ein Backend-Vertragstest ruft die echte Springdoc-Ausgabe unter `/v3/api-docs` ab und vergleicht Routen, Statuscodes, Header, Medientypen sowie rekursiv aufgelöste DTO-Schemata mit diesem Snapshot; CI bricht bei Drift ab.
 
 ## Portfolio-Unterlagen
 
@@ -239,7 +245,7 @@ Der Import ist als persistenter lokaler Hintergrundjob umgesetzt: `POST /analyse
 - Deterministische CI-Baseline über **80 deutsche Fälle**: Recall@6 **100 %**, MRR **97,8 %**, Status-Macro-F1 **100 %** und Required-Term-Abdeckung **100 %**.
 - Zitationspräzision sowie `NOT_FOUND` Precision und Recall liegen im versionierten synthetischen Set bei **100 %**.
 - 100 % ausgegebener Zitationen zeigen auf einen abgerufenen Chunk und ein darin enthaltenes Zitat; Zahlen, zentrale Entitäten und Negationen werden zusätzlich geprüft.
-- Testcontainers deckt Migrationen, Hybrid Retrieval, zwei Worker, Recovery, Review-Parallelität und XLSX-Export ab; Vitest und Playwright sichern Oberfläche, Tour, Deep Links und Download.
+- Testcontainers deckt Migrationen, Hybrid Retrieval, zwei Worker, Analyse-/Cleanup-Recovery, Review-Parallelität und XLSX-Export ab; Vitest und Playwright sichern Oberfläche, Tour, Deep Links und Download.
 
 ## Bewusste Grenzen
 

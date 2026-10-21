@@ -1,6 +1,11 @@
 spring:
   application:
     name: evidence-rfp
+  ai:
+    # Provider-Retries werden ausschließlich durch die fail-closed Adapter gesteuert.
+    # Null Spring-AI-Wiederholungen verhindern eine zweite, versteckte Retry-Kaskade.
+    retry:
+      max-attempts: 0
   profiles:
     default: demo
   servlet:
@@ -11,7 +16,7 @@ spring:
     default-property-inclusion: non_null
 
 server:
-  address: ${SERVER_ADDRESS:127.0.0.1}
+  address: 127.0.0.1
   error:
     include-message: never
 

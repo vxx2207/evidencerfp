@@ -18,18 +18,37 @@ public final class Analysis {
     private final List<EvidenceDocument> evidenceDocuments;
     private final List<ReviewEvent> reviewEvents;
     private final AnalysisStatus status;
+    private final AnalysisRunMetadata runMetadata;
 
     public Analysis(UUID id, String customerName, boolean synthetic, AnalysisStatus status,
                     Instant createdAt, Instant completedAt, List<QuestionResult> questions,
                     List<Finding> findings, List<EvidenceDocument> evidenceDocuments) {
         this(id, customerName, synthetic, status, createdAt, completedAt, questions, findings,
-                evidenceDocuments, initialReviewEvents(id, status, createdAt, completedAt, questions));
+                evidenceDocuments, initialReviewEvents(id, status, createdAt, completedAt, questions),
+                AnalysisRunMetadata.deterministicDefaults());
     }
 
     public Analysis(UUID id, String customerName, boolean synthetic, AnalysisStatus status,
                     Instant createdAt, Instant completedAt, List<QuestionResult> questions,
                     List<Finding> findings, List<EvidenceDocument> evidenceDocuments,
                     List<ReviewEvent> reviewEvents) {
+        this(id, customerName, synthetic, status, createdAt, completedAt, questions, findings,
+                evidenceDocuments, reviewEvents, AnalysisRunMetadata.deterministicDefaults());
+    }
+
+    public Analysis(UUID id, String customerName, boolean synthetic, AnalysisStatus status,
+                    Instant createdAt, Instant completedAt, List<QuestionResult> questions,
+                    List<Finding> findings, List<EvidenceDocument> evidenceDocuments,
+                    AnalysisRunMetadata runMetadata) {
+        this(id, customerName, synthetic, status, createdAt, completedAt, questions, findings,
+                evidenceDocuments, initialReviewEvents(id, status, createdAt, completedAt, questions),
+                runMetadata);
+    }
+
+    public Analysis(UUID id, String customerName, boolean synthetic, AnalysisStatus status,
+                    Instant createdAt, Instant completedAt, List<QuestionResult> questions,
+                    List<Finding> findings, List<EvidenceDocument> evidenceDocuments,
+                    List<ReviewEvent> reviewEvents, AnalysisRunMetadata runMetadata) {
         this.id = id;
         this.customerName = customerName;
         this.synthetic = synthetic;
@@ -41,6 +60,7 @@ public final class Analysis {
         this.findings = List.copyOf(findings);
         this.evidenceDocuments = List.copyOf(evidenceDocuments);
         this.reviewEvents = new ArrayList<>(reviewEvents);
+        this.runMetadata = java.util.Objects.requireNonNull(runMetadata, "runMetadata");
     }
 
     public UUID id() { return id; }
@@ -53,6 +73,7 @@ public final class Analysis {
     public List<Finding> findings() { return findings; }
     public List<EvidenceDocument> evidenceDocuments() { return evidenceDocuments; }
     public synchronized List<ReviewEvent> reviewEvents() { return List.copyOf(reviewEvents); }
+    public AnalysisRunMetadata runMetadata() { return runMetadata; }
 
     public synchronized boolean reviewComplete() {
         return status == AnalysisStatus.COMPLETED && !questions.isEmpty()

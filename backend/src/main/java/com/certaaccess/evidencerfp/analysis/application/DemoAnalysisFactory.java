@@ -1,6 +1,7 @@
 package com.certaaccess.evidencerfp.analysis.application;
 
 import com.certaaccess.evidencerfp.analysis.domain.Analysis;
+import com.certaaccess.evidencerfp.analysis.domain.AnalysisRunMetadata;
 import com.certaaccess.evidencerfp.analysis.domain.AnalysisStatus;
 import com.certaaccess.evidencerfp.analysis.domain.AnswerStatus;
 import com.certaaccess.evidencerfp.analysis.domain.Citation;
@@ -149,7 +150,8 @@ public class DemoAnalysisFactory {
         List<Finding> findings = new ArrayList<>(List.of(conflict, stale, missing));
         findings.addAll(iam);
         return new Analysis(DEMO_ID, "Musterbank Nova (synthetisch)", true, AnalysisStatus.COMPLETED,
-                CREATED_AT, CREATED_AT.plusSeconds(18), questions, findings, documents);
+                CREATED_AT, CREATED_AT.plusSeconds(18), questions, findings, documents,
+                AnalysisRunMetadata.precomputedDemo());
     }
 
     private QuestionResult supported(String id, String category, String question, String answer,

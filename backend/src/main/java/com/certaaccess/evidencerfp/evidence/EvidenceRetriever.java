@@ -7,6 +7,12 @@ import java.util.Set;
 
 /** Port für Retrieval; Implementierungen dürfen lokal oder über pgvector suchen. */
 public interface EvidenceRetriever {
+    String DEFAULT_VERSION = "lexical-deterministic-v2";
+
+    default String version() {
+        return DEFAULT_VERSION;
+    }
+
     List<EvidenceChunk> retrieve(RfpQuestion question, List<EvidenceChunk> availableChunks, int limit);
 
     /**
@@ -29,7 +35,7 @@ public interface EvidenceRetriever {
         List<RetrievedEvidence> matches = retrieve(question, availableChunks, limit).stream()
                 .map(chunk -> new RetrievedEvidence(chunk, new RetrievalProvenance(
                         Set.of(RetrievalChannel.LEXICAL_FALLBACK), null, null, 0,
-                        "lexical-deterministic-v2", "none", EvidenceChunkIdentity.sha256(chunk.content()))))
+                        version(), "none", EvidenceChunkIdentity.sha256(chunk.content()))))
                 .toList();
         return new RetrievalResult(question.id(), matches);
     }
@@ -43,7 +49,7 @@ public interface EvidenceRetriever {
             List<RetrievedEvidence> matches = chunksByQuestion.getOrDefault(question.id(), List.of()).stream()
                     .map(chunk -> new RetrievedEvidence(chunk, new RetrievalProvenance(
                             Set.of(RetrievalChannel.LEXICAL_FALLBACK), null, null, 0,
-                            "lexical-deterministic-v2", "none", EvidenceChunkIdentity.sha256(chunk.content()))))
+                            version(), "none", EvidenceChunkIdentity.sha256(chunk.content()))))
                     .toList();
             results.put(question.id(), new RetrievalResult(question.id(), matches));
         }

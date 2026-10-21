@@ -25,7 +25,7 @@ public class OpenAiEvidenceEmbeddingProvider implements EvidenceEmbeddingProvide
             @Value("${evidence-rfp.ai.embedding-model:text-embedding-3-small}") String modelId) {
         this.embeddingModel = embeddingModel;
         this.timeout = Duration.ofSeconds(Math.max(1, timeoutSeconds));
-        this.maxRetries = Math.max(0, maxRetries);
+        this.maxRetries = Math.min(2, Math.max(0, maxRetries));
         this.modelId = modelId;
     }
 

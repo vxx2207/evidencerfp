@@ -1,9 +1,9 @@
 package com.certaaccess.evidencerfp.evidence;
 
 import com.certaaccess.evidencerfp.analysis.domain.EvidenceDocument;
+import com.certaaccess.evidencerfp.analysis.infrastructure.AnalysisUploadStorage;
 import org.apache.pdfbox.Loader;
 import org.apache.pdfbox.io.IOUtils;
-import org.apache.pdfbox.io.RandomAccessReadBuffer;
 import org.apache.pdfbox.pdmodel.PDDocument;
 import org.apache.pdfbox.text.PDFTextStripper;
 import org.apache.tika.Tika;
@@ -14,6 +14,10 @@ import org.springframework.web.multipart.MultipartFile;
 
 import java.io.IOException;
 import java.io.InputStream;
+import java.io.OutputStream;
+import java.io.Writer;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.time.Clock;
 import java.time.LocalDate;
 import java.time.ZoneOffset;
@@ -77,10 +81,10 @@ public class EvidenceExtractor {
     private ExtractedEvidence extractPdf(MultipartFile file, String filename) throws IOException {
         List<EvidenceChunk> chunks = new ArrayList<>();
         StringBuilder fullText = new StringBuilder();
-        String documentHash = sha256(file);
-        try (InputStream input = file.getInputStream();
-             RandomAccessReadBuffer source = new RandomAccessReadBuffer(input);
-             PDDocument document = Loader.loadPDF(source, IOUtils.createTempFileOnlyStreamCache())) {
+        int extractedCharacters = 0;
+        try (PdfFileSource source = openPdfSource(file);
+             PDDocument document = Loader.loadPDF(
+                     source.path().toFile(), IOUtils.createTempFileOnlyStreamCache())) {
             if (document.getNumberOfPages() > properties.maxPdfPages()) {
                 throw new InvalidUploadException("PDF-Dokumente dürfen höchstens "
                         + properties.maxPdfPages() + " Seiten enthalten.");
@@ -89,10 +93,12 @@ public class EvidenceExtractor {
             for (int page = 1; page <= document.getNumberOfPages(); page++) {
                 stripper.setStartPage(page);
                 stripper.setEndPage(page);
-                String text = clean(stripper.getText(document));
-                enforceTextBudget(fullText.length(), text.length() + 1);
+                String rawText = extractPdfPageWithinBudget(
+                        stripper, document, extractedCharacters);
+                extractedCharacters += rawText.length();
+                String text = clean(rawText);
                 fullText.append(text).append('\n');
-                chunks.addAll(chunker.chunk(documentHash, filename, PDF_MEDIA_TYPE,
+                chunks.addAll(chunker.chunk(source.documentHash(), filename, PDF_MEDIA_TYPE,
                         "Seite " + page, text, null));
                 enforceChunkBudget(chunks.size());
             }
@@ -101,6 +107,37 @@ public class EvidenceExtractor {
         LocalDate date = findDate(fullText.toString());
         chunks = withDate(chunks, date);
         return result(filename, PDF_MEDIA_TYPE, chunks, date);
+    }
+
+    private String extractPdfPageWithinBudget(PDFTextStripper stripper, PDDocument document,
+                                               int extractedCharacters) throws IOException {
+        int remaining = properties.maxExtractedCharacters() - extractedCharacters;
+        LimitedStringWriter writer = new LimitedStringWriter(Math.max(remaining, 0));
+        try {
+            stripper.writeText(document, writer);
+        } catch (CharacterLimitExceededException exception) {
+            throw new InvalidUploadException("Das Dokument überschreitet das Textlimit von "
+                    + properties.maxExtractedCharacters() + " Zeichen.");
+        }
+        return writer.toString();
+    }
+
+    private PdfFileSource openPdfSource(MultipartFile file) throws IOException {
+        if (file instanceof AnalysisUploadStorage.PathMultipartFile storedUpload) {
+            return new PdfFileSource(storedUpload.trustedReadPath(), sha256(file), false);
+        }
+
+        Path temporaryPath = Files.createTempFile("evidencerfp-pdf-", ".upload");
+        MessageDigest digest = sha256Digest();
+        try (InputStream input = new DigestInputStream(file.getInputStream(), digest);
+             OutputStream output = Files.newOutputStream(temporaryPath)) {
+            input.transferTo(output);
+            return new PdfFileSource(temporaryPath,
+                    HexFormat.of().formatHex(digest.digest()), true);
+        } catch (IOException | RuntimeException exception) {
+            Files.deleteIfExists(temporaryPath);
+            throw exception;
+        }
     }
 
     private ExtractedEvidence extractDocx(MultipartFile file, String filename) throws Exception {
@@ -162,13 +199,6 @@ public class EvidenceExtractor {
         }
     }
 
-    private void enforceTextBudget(int existingCharacters, int nextCharacters) {
-        if ((long) existingCharacters + nextCharacters > properties.maxExtractedCharacters()) {
-            throw new InvalidUploadException("Das Dokument überschreitet das Textlimit von "
-                    + properties.maxExtractedCharacters() + " Zeichen.");
-        }
-    }
-
     private void enforceChunkBudget(int chunkCount) {
         if (chunkCount > properties.maxChunksPerFile()) {
             throw new InvalidUploadException("Das Dokument überschreitet das Chunk-Limit von "
@@ -177,16 +207,19 @@ public class EvidenceExtractor {
     }
 
     private String sha256(MultipartFile file) throws IOException {
-        MessageDigest digest;
-        try {
-            digest = MessageDigest.getInstance("SHA-256");
-        } catch (NoSuchAlgorithmException exception) {
-            throw new IllegalStateException("SHA-256 ist nicht verfügbar.", exception);
-        }
+        MessageDigest digest = sha256Digest();
         try (InputStream input = new DigestInputStream(file.getInputStream(), digest)) {
             input.transferTo(java.io.OutputStream.nullOutputStream());
         }
         return HexFormat.of().formatHex(digest.digest());
+    }
+
+    private MessageDigest sha256Digest() {
+        try {
+            return MessageDigest.getInstance("SHA-256");
+        } catch (NoSuchAlgorithmException exception) {
+            throw new IllegalStateException("SHA-256 ist nicht verfügbar.", exception);
+        }
     }
 
     private static DocumentProcessingProperties withStaleAfterDays(int staleAfterDays) {
@@ -196,4 +229,41 @@ public class EvidenceExtractor {
                 defaults.maxOoxmlExpandedBytes(), defaults.maxOoxmlCompressionRatio(),
                 defaults.maxOoxmlEntries(), defaults.maxQuestionCharacters(), defaults.parserTimeout());
     }
+
+    private record PdfFileSource(Path path, String documentHash,
+                                 boolean deleteAfterUse) implements AutoCloseable {
+        @Override
+        public void close() throws IOException {
+            if (deleteAfterUse) Files.deleteIfExists(path);
+        }
+    }
+
+    private static final class LimitedStringWriter extends Writer {
+        private final int limit;
+        private final StringBuilder content;
+
+        private LimitedStringWriter(int limit) {
+            this.limit = limit;
+            this.content = new StringBuilder(Math.min(limit, 8_192));
+        }
+
+        @Override
+        public void write(char[] characters, int offset, int length) throws IOException {
+            if (offset < 0 || length < 0 || offset + length > characters.length) {
+                throw new IndexOutOfBoundsException();
+            }
+            int remaining = limit - content.length();
+            if (length > remaining) {
+                if (remaining > 0) content.append(characters, offset, remaining);
+                throw new CharacterLimitExceededException();
+            }
+            content.append(characters, offset, length);
+        }
+
+        @Override public void flush() { }
+        @Override public void close() { }
+        @Override public String toString() { return content.toString(); }
+    }
+
+    private static final class CharacterLimitExceededException extends IOException { }
 }

@@ -1,39 +1,36 @@
-# Release-Checkliste v0.2.0
+# Release-Checkliste v0.2.1
 
-Diese Liste trennt lokal vollständig vorbereitete Arbeit von Schritten, die erst nach Verbindung mit einem persönlichen GitHub-Repository möglich sind.
+`v0.2.0` bleibt unverändert veröffentlicht. Diese Liste trennt die lokal vorbereiteten Patch-Metadaten von den Prüfungen und Veröffentlichungsschritten für `v0.2.1`.
 
-## Lokal
+## Patch lokal vorbereiten
 
-- [x] Backend-, Frontend- und Browsertests lokal grün; Docker-Tests werden ohne Docker kontrolliert übersprungen
-- [x] Ollama- und OpenAI-Profile kompilieren
-- [x] GitHub-Pages-Artefakt lokal bauen
-- [x] 60-Sekunden-Tour, Deep Links, Reset und XLSX-Download per Playwright prüfen
-- [x] Browser-XLSX technisch und visuell prüfen: vier Blätter, lesbare Kopfzeilen, keine Formeln oder Formel-Fehler
-- [x] OpenAPI-Client neu generieren und Vertrag auf Drift prüfen
-- [x] deterministischen 80-Fälle-Qualitätsbericht erzeugen
-- [ ] Testcontainers-Suite mit Docker beziehungsweise in GitHub Actions ausführen
-- [x] XLSX-Download schreibgeschützt in Microsoft Excel 16.0 öffnen und Struktur/Stile prüfen
-- [x] geprüftes synthetisches Beispiel-Evidence-Pack im Repository bereitstellen
-- [x] CI so konfigurieren, dass übersprungene Testcontainers-Tests den GitHub-Lauf fehlschlagen lassen
-- [x] taggesteuerten GitHub-Release mit Demo-Artefakten vorbereiten
-- [x] Screenshots für Quellenpassage, Konflikt und IAM-Finding aktualisieren
-- [x] kurze animierte Tour im README ergänzen
-- [x] 90-Sekunden-Aufnahme in 1440 × 900 mit WebVTT-Untertiteln erstellen
-- [x] Versionsnummern auf `0.2.0` vereinheitlichen
-- [x] Arbeitsbaum sauber committen
+- [x] historische Modell-, Prompt- und Retrieval-Provenienz persistieren
+- [x] Analysejobs auf zwei Gesamtversuche und Provider-Wiederholungen auf höchstens zwei begrenzen
+- [x] direkte Tests für Chat-Timeout, 429/5xx und fail-closed Modellausgaben ergänzen
+- [x] Springdoc-Ausgabe gegen den versionierten OpenAPI-Vertrag absichern
+- [x] optionales 80-Fälle-Ollama-/`bge-m3`-Evaluationsprofil dokumentieren
+- [x] Backend, Frontend, Lockfile, OpenAPI und Springdoc auf `0.2.1` vereinheitlichen
+- [x] `CHANGELOG.md` und `docs/releases/v0.2.1.md` ergänzen
+- [x] Velat Isik, Wirtschaftsinformatik und Ziel Technical Sales / Presales im README sichtbar zuordnen
+- [x] LinkedIn-Link und private Kontaktdaten bewusst nicht ergänzen
 
-## Nach Bereitstellung des GitHub-Remotes
+## Vollständige Verifikation
 
-- [ ] Remote `origin` setzen und `main` pushen
-- [ ] Repository-Beschreibung, Topics und `docs/assets/social-preview.png` als Social Preview setzen
-- [ ] GitHub Pages auf „GitHub Actions“ stellen und Deployment prüfen
-- [ ] echten Live-Demo-Link in README und Repository-Metadaten eintragen
-- [ ] Badge-URLs auf den tatsächlichen Owner-/Repository-Pfad umstellen
-- [ ] `main` und annotierten Tag `v0.2.0` pushen
-- [ ] automatisch erzeugtes GitHub Release mit Demo-Artefakten prüfen
+- [x] Backend mit `clean verify` prüfen; lokal ausschließlich Docker-Tests kontrolliert überspringen
+- [x] GitHub CI mit allen 19 PostgreSQL-/pgvector-/Recovery-Tests ohne Skip abschließen
+- [x] OpenAPI-Gate gegen die echte Ausgabe von `/v3/api-docs` prüfen
+- [x] OpenAI-Profil aus einem sauberen Build kompilieren
+- [x] optionales `ollama-eval`-Profil ohne Opt-in kompilieren und genau einen kontrollierten Skip bestätigen
+- [x] Frontend mit `npm ci`, Produktions-Audit, Vitest, TypeScript/Vite und Playwright prüfen
+- [x] OpenAPI-Client neu generieren und einen diff-freien Zustand bestätigen
+- [x] Docker-Compose-Konfiguration und vollständigen Git-Diff prüfen
 
-## Persönliches Portfolio
+## Veröffentlichung
 
-- [ ] Name, Studiengang und Zielrolle ergänzen
-- [ ] optional LinkedIn- oder Portfolio-Link ergänzen
-- [ ] keine privaten Kontaktdaten oder echten Kundendaten veröffentlichen
+- [x] technische Fixes und Release-Metadaten getrennt committen
+- [x] `main` pushen und vollständigen GitHub-CI-Lauf abwarten
+- [x] annotierten Tag `v0.2.1` auf den grünen Commit setzen und pushen
+- [x] automatisch erzeugtes GitHub Release samt sechs Demo-Artefakten prüfen
+- [x] GitHub Pages, Live-Demo, Badges, Social Preview und Release-Link kontrollieren
+- [x] sauberen Arbeitsbaum sowie identisches lokales und entferntes `main` bestätigen
+- [x] bestätigen, dass Tag und Release `v0.2.0` unverändert geblieben sind

@@ -11,6 +11,8 @@
 >
 > EvidenceRFP ist kein Produkt der fiktiven Unternehmen CertaAccess oder Nordstern Bank. Die öffentliche Demo verarbeitet keine Uploads und keine echten Kundendaten.
 
+**Velat Isik – Wirtschaftsinformatik, Ziel Technical Sales / Presales**
+
 **Vom Security-Fragebogen zur belegbaren Antwort – inklusive IAM-Kontrollnachweisen.**
 
 EvidenceRFP unterstützt Technical-Sales-Teams dabei, wiederkehrende Security-Fragebögen schneller und belastbarer zu beantworten. Die Anwendung findet passende Aussagen in freigegebenen Produktunterlagen, zeigt die exakte Fundstelle, markiert Widersprüche und ergänzt dokumentbasierte Antworten um deterministische Identity-Security-Prüfungen.

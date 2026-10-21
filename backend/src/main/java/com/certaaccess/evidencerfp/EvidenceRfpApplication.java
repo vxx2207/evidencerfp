@@ -26,7 +26,7 @@ public class EvidenceRfpApplication {
     OpenAPI evidenceRfpOpenApi() {
         return new OpenAPI().info(new Info()
                 .title("EvidenceRFP API")
-                .version("0.2.0")
+                .version("0.2.1")
                 .description("Lokale, belegbare Security-Fragebogenanalyse. "
                         + "Alle Demodaten sind synthetisch."));
     }

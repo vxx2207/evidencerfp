@@ -2,6 +2,21 @@
 
 Alle nennenswerten Änderungen an EvidenceRFP werden in dieser Datei dokumentiert. Das Format orientiert sich an [Keep a Changelog](https://keepachangelog.com/de/1.1.0/); das Projekt verwendet semantische Versionierung.
 
+## [0.2.1] – 2026-10-21
+
+### Korrigiert
+
+- historische Modell-, Prompt- und Retrieval-Provenienz wird pro Analyse persistiert und nicht aus der jeweils aktuellen Laufzeitkonfiguration rekonstruiert
+- Analysejobs bleiben auf höchstens zwei Gesamtversuche begrenzt; Provideraufrufe werden höchstens zweimal wiederholt
+- Chat-Timeouts, 429-/5xx-Wiederholungen und ungültige Modellausgaben werden direkt und fail-closed getestet
+- die echte Springdoc-Ausgabe unter `/v3/api-docs` wird gegen den versionierten OpenAPI-Vertrag geprüft
+
+### Dokumentation
+
+- optionales 80-Fälle-Evaluationsprofil für Ollama und `bge-m3` dokumentiert; die deterministische CI-Baseline bleibt unverändert
+- Backend, Frontend, Lockfile, OpenAPI und Springdoc auf Version `0.2.1` vereinheitlicht
+- Portfolio-Zuordnung zu Velat Isik, Wirtschaftsinformatik und der Zielrolle Technical Sales / Presales ergänzt
+
 ## [0.2.0] – 2026-10-19
 
 ### Hinzugefügt
